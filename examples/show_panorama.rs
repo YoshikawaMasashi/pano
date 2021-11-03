@@ -131,7 +131,7 @@ fn main() {
                     *control_flow = glutin::event_loop::ControlFlow::Exit;
                     return;
                 }
-                glutin::event::WindowEvent::MouseInput{device_id, state, button, modifiers} => {
+                glutin::event::WindowEvent::MouseInput { state, button, .. } => {
                     if button == glutin::event::MouseButton::Left {
                         if state == glutin::event::ElementState::Pressed {
                             mouse_is_down = true;
@@ -139,13 +139,13 @@ fn main() {
                             mouse_is_down = false;
                             rotation_x = prev_rotation_x - mouse_move_y;
                             rotation_y = prev_rotation_y - mouse_move_x;
-                            
+
                             rotation_x = (rotation_x + 180.0) % 360.0 - 180.0;
-                            if(rotation_x > 90.0) {
+                            if rotation_x > 90.0 {
                                 rotation_x = 180.0 - rotation_x;
                                 rotation_y = rotation_y + 180.0;
                             }
-                            if(rotation_x < -90.0) {
+                            if rotation_x < -90.0 {
                                 rotation_x = -180.0 - rotation_x;
                                 rotation_y = rotation_y + 180.0;
                             }
@@ -161,8 +161,8 @@ fn main() {
                 }
                 _ => return,
             },
-            glutin::event::Event::DeviceEvent {event, ..} => match event {
-                glutin::event::DeviceEvent::MouseMotion{delta} => {
+            glutin::event::Event::DeviceEvent { event, .. } => match event {
+                glutin::event::DeviceEvent::MouseMotion { delta } => {
                     if mouse_is_down {
                         mouse_move_x += 0.5 * delta.0 as f32;
                         mouse_move_y += 0.5 * delta.1 as f32;
@@ -171,7 +171,7 @@ fn main() {
                     }
                 }
                 _ => return,
-            }
+            },
             glutin::event::Event::NewEvents(cause) => match cause {
                 glutin::event::StartCause::ResumeTimeReached { .. } => (),
                 glutin::event::StartCause::Init => (),
