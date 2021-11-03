@@ -1,0 +1,7 @@
+[package]
+name = "pano"
+version = "0.1.0"
+authors = ["masashi yoshikawa"]
+edition = "2018"
+
+[dependencies]
