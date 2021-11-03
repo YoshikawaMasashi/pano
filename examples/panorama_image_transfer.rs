@@ -132,6 +132,119 @@ fn main() {
     let mut draw_params: glium::draw_parameters::DrawParameters<'_> = Default::default();
     draw_params.blend = glium::Blend::alpha_blending();
 
+    // https://schneide.blog/2016/07/15/generating-an-icosphere-in-c/
+    let x: f32 = 0.525731112119133606;
+    let z: f32 = 0.850650808352039932;
+    let n: f32 = 0.0;
+    let vertices = vec![
+        (-x, n, z),
+        (x, n, z),
+        (-x, n, -z),
+        (x, n, -z),
+        (n, z, x),
+        (n, z, -x),
+        (n, -z, x),
+        (n, -z, -x),
+        (z, x, n),
+        (-z, x, n),
+        (z, -x, n),
+        (-z, -x, n),
+    ];
+    let triangles = vec![
+        (0, 4, 1),
+        (0, 9, 4),
+        (9, 5, 4),
+        (4, 5, 8),
+        (4, 8, 1),
+        (8, 10, 1),
+        (8, 3, 10),
+        (5, 3, 8),
+        (5, 2, 3),
+        (2, 7, 3),
+        (7, 10, 3),
+        (7, 6, 10),
+        (7, 11, 6),
+        (11, 0, 6),
+        (0, 1, 6),
+        (6, 1, 10),
+        (9, 0, 11),
+        (9, 11, 2),
+        (9, 2, 5),
+        (7, 2, 11),
+    ];
+
+    let res = 180;
+    for triangle in triangles.iter() {
+        for i in 0..res + 1 {
+            for j in 0..(res + 1 - i) {
+                let k = res - i - j;
+                let ratio = (
+                    i as f32 / res as f32,
+                    j as f32 / res as f32,
+                    k as f32 / res as f32,
+                );
+                let v1 = vertices[triangle.0];
+                let v2 = vertices[triangle.1];
+                let v3 = vertices[triangle.2];
+                let v = (
+                    v1.0 * ratio.0 + v2.0 * ratio.1 + v3.0 * ratio.2 + 0.003 * (2.0 * rand::random::<f32>() -1.0),
+                    v1.1 * ratio.0 + v2.1 * ratio.1 + v3.1 * ratio.2 + 0.003 * (2.0 * rand::random::<f32>() -1.0),
+                    v1.2 * ratio.0 + v2.2 * ratio.1 + v3.2 * ratio.2 + 0.003 * (2.0 * rand::random::<f32>() -1.0),
+                );
+                let l = (v.0 * v.0 + v.1 * v.1 + v.2 * v.2).sqrt();
+                let v = (v.0 / l, v.1 / l, v.2 / l);
+
+                let elevation = v.1.asin();
+                let azimuth = v.0.signum() * (v.2 / elevation.cos()).acos();
+                let tex_coords = (
+                    azimuth / std::f32::consts::PI,
+                    elevation / std::f32::consts::PI * 2.0,
+                );
+                let tex_coords = ((-tex_coords.0 + 1.0) / 2.0, (-tex_coords.1 + 1.0) / 2.0);
+                let tex_coords = (
+                    (tex_coords.0 * 3840.0).round() as u32 % 3840,
+                    (tex_coords.1 * 1920.0).round() as u32 % 1920,
+                );
+
+                let color = image.get_pixel(tex_coords.0, tex_coords.1);
+                let hsv_color: Hsv = Srgb::new(
+                    color[0] as f32 / 255.0,
+                    color[1] as f32 / 255.0,
+                    color[2] as f32 / 255.0,
+                )
+                .into_color();
+                let hsv_color: Hsv = Hsv::new(
+                    hsv_color.hue + 3.0 * (2.0 * rand::random::<f32>() - 1.0),
+                    hsv_color.saturation + 0.02 * (2.0 * rand::random::<f32>() - 1.0),
+                    hsv_color.value + 0.02 * (2.0 * rand::random::<f32>() - 1.0),
+                );
+                let srgb_color: Srgb = hsv_color.into_color();
+
+                let circle_color = [
+                    srgb_color.red,
+                    srgb_color.green,
+                    srgb_color.blue,
+                    color[3] as f32 / 255.0,
+                ];
+
+                let uniforms = uniform! {
+                    position: [elevation / std::f32::consts::PI * 180.0, azimuth / std::f32::consts::PI * 180.0, 0.0],
+                    scale: 0.005 + 0.005 * rand::random::<f32>(),
+                    circle_color: circle_color,
+                };
+                framebuffer
+                    .draw(
+                        &vertex_buffer,
+                        &index_buffer,
+                        &program,
+                        &uniforms,
+                        &draw_params,
+                    )
+                    .unwrap();
+            }
+        }
+    }
+    /*
     for _ in 0..500000 {
         let sin_elevation = 2.0 * rand::random::<f32>() - 1.0;
         let elevation = sin_elevation.asin();
@@ -182,6 +295,7 @@ fn main() {
             )
             .unwrap();
     }
+    */
 
     target.finish().unwrap();
 

@@ -14,7 +14,7 @@ fn main() {
     let display = glium::Display::new(wb, cb, &event_loop).unwrap();
 
     let image = image::load(
-        Cursor::new(include_bytes!("../equirectangular.png")),
+        Cursor::new(include_bytes!("../panorama_image_transfer.png")),
         image::ImageFormat::Png,
     )
     .unwrap()
