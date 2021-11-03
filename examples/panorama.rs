@@ -6,11 +6,11 @@ use std::io::Cursor;
 use glium::backend::Facade;
 use glium::{glutin, Surface};
 
-fn read_png_to_texture<F: ?Sized>(path: &[u8], facade: &F) -> glium::texture::SrgbTexture2d
+fn load_png_to_texture<F: ?Sized>(binary_data: &[u8], facade: &F) -> glium::texture::SrgbTexture2d
 where
     F: Facade,
 {
-    let image = image::load(Cursor::new(path), image::ImageFormat::Png)
+    let image = image::load(Cursor::new(binary_data), image::ImageFormat::Png)
         .unwrap()
         .to_rgba8();
     let image_dimensions = image.dimensions();
@@ -33,17 +33,17 @@ fn main() {
     let headless = glium::backend::glutin::headless::Headless::new(context).unwrap();
 
     println!("image loading");
-    let front_texture = read_png_to_texture(include_bytes!("./6cubes_image/front.png"), &headless);
+    let front_texture = load_png_to_texture(include_bytes!("./6cubes_image/front.png"), &headless);
     println!("front");
-    let back_texture = read_png_to_texture(include_bytes!("./6cubes_image/back.png"), &headless);
+    let back_texture = load_png_to_texture(include_bytes!("./6cubes_image/back.png"), &headless);
     println!("back");
-    let left_texture = read_png_to_texture(include_bytes!("./6cubes_image/left.png"), &headless);
+    let left_texture = load_png_to_texture(include_bytes!("./6cubes_image/left.png"), &headless);
     println!("left");
-    let right_texture = read_png_to_texture(include_bytes!("./6cubes_image/right.png"), &headless);
+    let right_texture = load_png_to_texture(include_bytes!("./6cubes_image/right.png"), &headless);
     println!("right");
-    let top_texture = read_png_to_texture(include_bytes!("./6cubes_image/top.png"), &headless);
+    let top_texture = load_png_to_texture(include_bytes!("./6cubes_image/top.png"), &headless);
     println!("top");
-    let bottom_texture = read_png_to_texture(include_bytes!("./6cubes_image/bottom.png"), &headless);
+    let bottom_texture = load_png_to_texture(include_bytes!("./6cubes_image/bottom.png"), &headless);
     println!("bottom");
     println!("image load done");
     
