@@ -73,29 +73,26 @@ fn main() {
         out vec4 color;
 
         uniform sampler2D tex;
-        uniform vec3 position;
+        uniform float rotation_x;
+        uniform float rotation_y;
 
         void main() {
             vec3 pt = vec3(v_tex_coords.x, v_tex_coords.y, 1.0);
             pt = normalize(pt);
             
-            vec3 rotation_eular = position / 180.0 * PI;
-            mat3 rotation_x = mat3(
+            float rotation_x_ = rotation_x / 180.0 * PI;
+            float rotation_y_ = rotation_y / 180.0 * PI;
+            mat3 rotation_x_mat = mat3(
                 vec3(1, 0.0, 0.0),
-                vec3(0.0, cos(rotation_eular.x), -sin(rotation_eular.x)),
-                vec3(0.0, sin(rotation_eular.x), cos(rotation_eular.x))
+                vec3(0.0, cos(rotation_x_), -sin(rotation_x_)),
+                vec3(0.0, sin(rotation_x_), cos(rotation_x_))
             );
-            mat3 rotation_y = mat3(
-                vec3(cos(rotation_eular.y), 0.0, sin(rotation_eular.y)),
+            mat3 rotation_y_mat = mat3(
+                vec3(cos(rotation_y_), 0.0, sin(rotation_y_)),
                 vec3(0.0, 1.0, 0.0),
-                vec3(-sin(rotation_eular.y), 0.0, cos(rotation_eular.y))
+                vec3(-sin(rotation_y_), 0.0, cos(rotation_y_))
             );
-            mat3 rotation_z = mat3(
-                vec3(cos(rotation_eular.z), -sin(rotation_eular.z), 0.0),
-                vec3(sin(rotation_eular.z), cos(rotation_eular.z), 0.0),
-                vec3(0.0, 0.0, 1.0)
-            );
-            mat3 rotation = rotation_x * rotation_y * rotation_z;
+            mat3 rotation = rotation_y_mat * rotation_x_mat;
             pt = rotation * pt;
 
             float elevation = asin(pt.y);
@@ -152,7 +149,6 @@ fn main() {
 
                             prev_rotation_x = rotation_x;
                             prev_rotation_y = rotation_y;
-                            println!("{:?} {:?}", rotation_x, rotation_y);
 
                             mouse_move_x = 0.0;
                             mouse_move_y = 0.0;
@@ -185,7 +181,8 @@ fn main() {
 
         let uniforms = uniform! {
             tex: &texture,
-            position: [rotation_x, rotation_y, 0.0],
+            rotation_x: rotation_x,
+            rotation_y: rotation_y,
         };
 
         target
