@@ -1,7 +1,10 @@
 #[macro_use]
 extern crate glium;
 
+use std::io::Cursor;
+
 use glium::{glutin, Surface};
+use palette::{Hsv, IntoColor, Srgb};
 
 fn main() {
     let event_loop = glutin::event_loop::EventLoop::new();
@@ -13,6 +16,13 @@ fn main() {
     };
     let context = cb.build_headless(&event_loop, size).unwrap();
     let headless = glium::backend::glutin::headless::Headless::new(context).unwrap();
+
+    let image = image::load(
+        Cursor::new(include_bytes!("../equirectangular.png")),
+        image::ImageFormat::Png,
+    )
+    .unwrap()
+    .to_rgba8();
 
     #[derive(Copy, Clone)]
     struct Vertex {
@@ -122,65 +132,56 @@ fn main() {
     let mut draw_params: glium::draw_parameters::DrawParameters<'_> = Default::default();
     draw_params.blend = glium::Blend::alpha_blending();
 
-    let uniforms = uniform! {
-        position: [60.0 as f32, 185.0 as f32, 10.0 as f32],
-        scale: 0.3 as f32,
-        circle_color: [0.0 as f32, 0.0 as f32, 1.0 as f32, 1.0 as f32],
-    };
-    framebuffer
-        .draw(
-            &vertex_buffer,
-            &index_buffer,
-            &program,
-            &uniforms,
-            &draw_params,
-        )
-        .unwrap();
+    for _ in 0..500000 {
+        let sin_elevation = 2.0 * rand::random::<f32>() - 1.0;
+        let elevation = sin_elevation.asin();
+        let azimuth = std::f32::consts::PI * (2.0 * rand::random::<f32>() - 1.0);
+        let tex_coords = (
+            azimuth / std::f32::consts::PI,
+            elevation / std::f32::consts::PI * 2.0,
+        );
+        let tex_coords = ((-tex_coords.0 + 1.0) / 2.0, (-tex_coords.1 + 1.0) / 2.0);
+        let tex_coords = (
+            (tex_coords.0 * 3840.0).round() as u32 % 3840,
+            (tex_coords.1 * 1920.0).round() as u32 % 1920,
+        );
 
-    let uniforms = uniform! {
-        position: [90.0 as f32, 0.0 as f32, 3.0 as f32],
-        scale: 0.1 as f32,
-        circle_color: [0.0 as f32, 0.0 as f32, 1.0 as f32, 1.0 as f32],
-    };
-    framebuffer
-        .draw(
-            &vertex_buffer,
-            &index_buffer,
-            &program,
-            &uniforms,
-            &draw_params,
+        let color = image.get_pixel(tex_coords.0, tex_coords.1);
+        let hsv_color: Hsv = Srgb::new(
+            color[0] as f32 / 255.0,
+            color[1] as f32 / 255.0,
+            color[2] as f32 / 255.0,
         )
-        .unwrap();
+        .into_color();
+        let hsv_color: Hsv = Hsv::new(
+            hsv_color.hue + 3.0 * (2.0 * rand::random::<f32>() - 1.0),
+            hsv_color.saturation + 0.02 * (2.0 * rand::random::<f32>() - 1.0),
+            hsv_color.value + 0.02 * (2.0 * rand::random::<f32>() - 1.0),
+        );
+        let srgb_color: Srgb = hsv_color.into_color();
 
-    let uniforms = uniform! {
-        position: [-30.0 as f32, 20.0 as f32, 1.0 as f32],
-        scale: 0.2 as f32,
-        circle_color: [0.0 as f32, 0.0 as f32, 1.0 as f32, 1.0 as f32],
-    };
-    framebuffer
-        .draw(
-            &vertex_buffer,
-            &index_buffer,
-            &program,
-            &uniforms,
-            &draw_params,
-        )
-        .unwrap();
+        let circle_color = [
+            srgb_color.red,
+            srgb_color.green,
+            srgb_color.blue,
+            color[3] as f32 / 255.0,
+        ];
 
-    let uniforms = uniform! {
-        position: [-20.0 as f32, 120.0 as f32, 50.0 as f32],
-        scale: 0.4 as f32,
-        circle_color: [0.0 as f32, 0.0 as f32, 1.0 as f32, 1.0 as f32],
-    };
-    framebuffer
-        .draw(
-            &vertex_buffer,
-            &index_buffer,
-            &program,
-            &uniforms,
-            &draw_params,
-        )
-        .unwrap();
+        let uniforms = uniform! {
+            position: [elevation / std::f32::consts::PI * 180.0, azimuth / std::f32::consts::PI * 180.0, 0.0],
+            scale: 0.005 + 0.005 * rand::random::<f32>(),
+            circle_color: circle_color,
+        };
+        framebuffer
+            .draw(
+                &vertex_buffer,
+                &index_buffer,
+                &program,
+                &uniforms,
+                &draw_params,
+            )
+            .unwrap();
+    }
 
     target.finish().unwrap();
 
@@ -188,5 +189,5 @@ fn main() {
     let image =
         image::ImageBuffer::from_raw(image.width, image.height, image.data.into_owned()).unwrap();
     let image = image::DynamicImage::ImageRgba8(image).flipv();
-    image.save("panorama_circle.png").unwrap();
+    image.save("panorama_image_transfer.png").unwrap();
 }

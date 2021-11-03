@@ -43,10 +43,11 @@ fn main() {
     println!("right");
     let top_texture = load_png_to_texture(include_bytes!("./6cubes_image/top.png"), &headless);
     println!("top");
-    let bottom_texture = load_png_to_texture(include_bytes!("./6cubes_image/bottom.png"), &headless);
+    let bottom_texture =
+        load_png_to_texture(include_bytes!("./6cubes_image/bottom.png"), &headless);
     println!("bottom");
     println!("image load done");
-    
+
     #[derive(Copy, Clone)]
     struct Vertex {
         position: [f32; 2],
@@ -54,15 +55,27 @@ fn main() {
 
     implement_vertex!(Vertex, position);
 
-    let vertex1 = Vertex { position: [-1.0, -1.0] };
-    let vertex2 = Vertex { position: [-1.0,  1.0] };
-    let vertex3 = Vertex { position: [1.0, 1.0] };
-    let vertex4 = Vertex { position: [1.0, -1.0] };
+    let vertex1 = Vertex {
+        position: [-1.0, -1.0],
+    };
+    let vertex2 = Vertex {
+        position: [-1.0, 1.0],
+    };
+    let vertex3 = Vertex {
+        position: [1.0, 1.0],
+    };
+    let vertex4 = Vertex {
+        position: [1.0, -1.0],
+    };
     let shape = vec![vertex1, vertex2, vertex3, vertex4];
 
     let vertex_buffer = glium::VertexBuffer::new(&headless, &shape).unwrap();
-    let index_buffer = glium::IndexBuffer::new(&headless, glium::index::PrimitiveType::TrianglesList,
-        &[0u16, 1, 2, 2, 3, 0]).unwrap();
+    let index_buffer = glium::IndexBuffer::new(
+        &headless,
+        glium::index::PrimitiveType::TrianglesList,
+        &[0u16, 1, 2, 2, 3, 0],
+    )
+    .unwrap();
 
     let output_texture = glium::texture::Texture2d::empty(&headless, 3840, 1920).unwrap();
 
@@ -123,13 +136,14 @@ fn main() {
         }
     "#;
 
-    let program = glium::Program::from_source(&headless, vertex_shader_src, fragment_shader_src,
-                                              None).unwrap();
-    
-    let mut framebuffer = glium::framebuffer::SimpleFrameBuffer::new(&headless, &output_texture).unwrap();
+    let program =
+        glium::Program::from_source(&headless, vertex_shader_src, fragment_shader_src, None)
+            .unwrap();
+
+    let mut framebuffer =
+        glium::framebuffer::SimpleFrameBuffer::new(&headless, &output_texture).unwrap();
     let target = headless.draw();
 
-    
     let uniforms = uniform! {
         front: &front_texture,
         back: &back_texture,
@@ -139,13 +153,21 @@ fn main() {
         bottom: &bottom_texture,
     };
 
-    framebuffer.draw(&vertex_buffer, &index_buffer, &program, &uniforms,
-        &Default::default()).unwrap();
-    
+    framebuffer
+        .draw(
+            &vertex_buffer,
+            &index_buffer,
+            &program,
+            &uniforms,
+            &Default::default(),
+        )
+        .unwrap();
+
     target.finish().unwrap();
-    
+
     let image: glium::texture::RawImage2d<u8> = output_texture.read();
-    let image = image::ImageBuffer::from_raw(image.width, image.height, image.data.into_owned()).unwrap();
+    let image =
+        image::ImageBuffer::from_raw(image.width, image.height, image.data.into_owned()).unwrap();
     let image = image::DynamicImage::ImageRgba8(image).flipv();
     image.save("equirectangular.png").unwrap();
 }
