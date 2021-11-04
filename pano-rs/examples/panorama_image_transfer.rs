@@ -187,9 +187,18 @@ fn main() {
                 let v2 = vertices[triangle.1];
                 let v3 = vertices[triangle.2];
                 let v = (
-                    v1.0 * ratio.0 + v2.0 * ratio.1 + v3.0 * ratio.2 + 0.003 * (2.0 * rand::random::<f32>() -1.0),
-                    v1.1 * ratio.0 + v2.1 * ratio.1 + v3.1 * ratio.2 + 0.003 * (2.0 * rand::random::<f32>() -1.0),
-                    v1.2 * ratio.0 + v2.2 * ratio.1 + v3.2 * ratio.2 + 0.003 * (2.0 * rand::random::<f32>() -1.0),
+                    v1.0 * ratio.0
+                        + v2.0 * ratio.1
+                        + v3.0 * ratio.2
+                        + 0.003 * (2.0 * rand::random::<f32>() - 1.0),
+                    v1.1 * ratio.0
+                        + v2.1 * ratio.1
+                        + v3.1 * ratio.2
+                        + 0.003 * (2.0 * rand::random::<f32>() - 1.0),
+                    v1.2 * ratio.0
+                        + v2.2 * ratio.1
+                        + v3.2 * ratio.2
+                        + 0.003 * (2.0 * rand::random::<f32>() - 1.0),
                 );
                 let l = (v.0 * v.0 + v.1 * v.1 + v.2 * v.2).sqrt();
                 let v = (v.0 / l, v.1 / l, v.2 / l);
