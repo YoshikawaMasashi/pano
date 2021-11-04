@@ -1,0 +1,11 @@
+[package]
+name = "pano"
+version = "0.1.0"
+authors = ["masashi yoshikawa"]
+edition = "2021"
+
+[dependencies]
+glium = "0.30.2"
+image = "0.23"
+rand = "0.8.4"
+palette = "0.6.0"
