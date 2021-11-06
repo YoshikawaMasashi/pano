@@ -57,11 +57,11 @@ fn main() {
         #version 140
 
         in vec2 position;
-        out vec2 v_tex_coords;
+        out vec2 fragment_position;
 
         void main() {
             gl_Position = vec4(position, 0.0, 1.0);
-            v_tex_coords = position;
+            fragment_position = position;
         }
     "#;
 
@@ -69,7 +69,7 @@ fn main() {
         #version 140
         #define PI 3.1415926535897932384626
 
-        in vec2 v_tex_coords;
+        in vec2 fragment_position;
         out vec4 color;
 
         uniform sampler2D tex;
@@ -77,7 +77,7 @@ fn main() {
         uniform float rotation_y;
 
         void main() {
-            vec3 pt = vec3(v_tex_coords.x, v_tex_coords.y, 1.0);
+            vec3 pt = vec3(fragment_position.x, fragment_position.y, 1.0);
             pt = normalize(pt);
             
             float rotation_x_ = rotation_x / 180.0 * PI;
@@ -96,7 +96,7 @@ fn main() {
             pt = rotation * pt;
 
             float elevation = asin(pt.y);
-            float azimuth = sign(pt.x) * acos(pt.z / cos(elevation));
+            float azimuth = sign(pt.x) * acos(pt.z / length(pt.xz));
 
             vec2 tex_coords = vec2(azimuth / PI, elevation / PI * 2.0);
             tex_coords = (tex_coords + 1.0) / 2.0;

@@ -56,40 +56,66 @@ pub fn start() -> Result<(), JsValue> {
         &context,
         WebGl2RenderingContext::VERTEX_SHADER,
         r##"#version 300 es
-        const vec3[4] POSITIONS = vec3[](
-        vec3(-1.0, -1.0, 0.0),
-        vec3(1.0, -1.0, 0.0),
-        vec3(-1.0, 1.0, 0.0),
-        vec3(1.0, 1.0, 0.0)
+        const vec2[4] POSITIONS = vec2[](
+            vec2(-1.0, -1.0),
+            vec2(-1.0, 1.0),
+            vec2(1.0, 1.0),
+            vec2(1.0, -1.0)
         );
         const int[6] INDICES = int[](
-        0, 1, 2,
-        3, 2, 1
+            0, 1, 2,
+            2, 3, 0
         );
-        out vec2 v_uv;
+        out vec2 fragment_position;
         void main(void) {
-        vec3 position = POSITIONS[INDICES[gl_VertexID]];
-        gl_Position = vec4(position * 0.5, 1.0);
-        v_uv = position.xy * 0.5 + 0.5;
+            vec2 position = POSITIONS[INDICES[gl_VertexID]];
+            gl_Position = vec4(position, 0.0, 1.0);
+            fragment_position = vec2(position.x, -position.y);
         }"##,
     )?;
     let frag_shader = compile_shader(
         &context,
         WebGl2RenderingContext::FRAGMENT_SHADER,
         r##"#version 300 es
+        #define PI 3.1415926535897932384626
         precision highp float;
-        in vec2 v_uv;
-        out vec4 o_color;
-        uniform sampler2D u_texture;
+        in vec2 fragment_position;
+        out vec4 color;
+        uniform sampler2D tex;
         void main(void) {
-        vec3 color = texture(u_texture, v_uv).xyz;
-        o_color = vec4(color, 1.0);
+            float rotation_x = 0.0;
+            float rotation_y = 0.0;
+            vec3 pt = vec3(fragment_position.x, fragment_position.y, 1.0);
+            pt = normalize(pt);
+            
+            float rotation_x_ = rotation_x / 180.0 * PI;
+            float rotation_y_ = rotation_y / 180.0 * PI;
+            mat3 rotation_x_mat = mat3(
+                vec3(1, 0.0, 0.0),
+                vec3(0.0, cos(rotation_x_), -sin(rotation_x_)),
+                vec3(0.0, sin(rotation_x_), cos(rotation_x_))
+            );
+            mat3 rotation_y_mat = mat3(
+                vec3(cos(rotation_y_), 0.0, sin(rotation_y_)),
+                vec3(0.0, 1.0, 0.0),
+                vec3(-sin(rotation_y_), 0.0, cos(rotation_y_))
+            );
+            mat3 rotation = rotation_y_mat * rotation_x_mat;
+            pt = rotation * pt;
+
+            float elevation = asin(pt.y);
+            float azimuth = sign(pt.x) * acos(pt.z / length(pt.xz)); // sign(pt.x) * acos(pt.z / cos(elevation));
+
+            vec2 tex_coords = vec2(azimuth / PI, elevation / PI * 2.0);
+            tex_coords = (tex_coords + 1.0) / 2.0;
+
+            color = texture(tex, tex_coords);
         }
         "##,
     )?;
     let program = link_program(&context, &vert_shader, &frag_shader)?;
     let uniforms =
-        get_uniform_locations(&context, &program, vec!["u_texture".to_string()]).unwrap();
+        get_uniform_locations(&context, &program, vec!["tex".to_string()]).unwrap();
 
     let image = read_image(Path::new("../pano-rs/panorama_image_transfer.png"));
     let tex_width = image.width();
@@ -125,7 +151,7 @@ pub fn start() -> Result<(), JsValue> {
     context.use_program(Some(&program));
     context.active_texture(WebGl2RenderingContext::TEXTURE0);
     context.bind_texture(WebGl2RenderingContext::TEXTURE_2D, Some(&texture));
-    context.uniform1i(Some(&uniforms["u_texture"]), 0);
+    context.uniform1i(Some(&uniforms["tex"]), 0);
     context.draw_arrays(WebGl2RenderingContext::TRIANGLES, 0, 6);
     Ok(())
 }
