@@ -1,5 +1,4 @@
 pano-rs/target
 pano-rs/Cargo.lock
 node_modules/
-src/pano.js
 *.png

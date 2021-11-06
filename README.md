@@ -4,8 +4,7 @@
 
 build
 ```
-$ npm run build # build frontend
-$ npm run wasm # build wasm code
+$ npm run build # build wasm code
 ```
 
 start

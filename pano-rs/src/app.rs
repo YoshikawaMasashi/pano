@@ -17,6 +17,7 @@ const WORK_TEXTURE_HEIGHT: usize = 1920;
 
 pub enum Msg {
     AddOne,
+    MouseDownCanvas,
 }
 
 pub struct Model {
@@ -38,9 +39,14 @@ impl Component for Model {
         match msg {
             Msg::AddOne => {
                 self.value += 1;
+                crate::console_log!("{}", self.value);
                 // the value has changed so we need to
                 // re-render for it to appear on the page
                 true
+            }
+            Msg::MouseDownCanvas => {
+                crate::console_log!("mouse down");
+                false
             }
         }
     }
@@ -56,7 +62,7 @@ impl Component for Model {
         html! {
             <div>
                 <p>{"Hello World!"}</p>
-                <canvas id="canvas" height="960" width="960"></canvas>
+                <canvas id="canvas" height="960" width="960" onmousedown=self.link.callback(|_| Msg::MouseDownCanvas)></canvas>
                 <button onclick=self.link.callback(|_| Msg::AddOne)>{ "+1" }</button>
                 <p>{ self.value }</p>
             </div>
