@@ -31,4 +31,5 @@ features = [
   'Window',
   'WebGlUniformLocation',
   'WebGlTexture',
+  'MouseEvent',
 ]

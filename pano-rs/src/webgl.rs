@@ -191,6 +191,24 @@ impl PanoramaShower {
     pub fn increase_rotation_y(&mut self, rotation: f32) {
         self.rotation_y += rotation;
     }
+
+    pub fn modify_rotation(&mut self ){
+        let mut rotation_x = self.rotation_x;
+        let mut rotation_y = self.rotation_y;
+        
+        rotation_x = (rotation_x + 180.0) % 360.0 - 180.0;
+        if rotation_x > 90.0 {
+            rotation_x = 180.0 - rotation_x;
+            rotation_y = rotation_y + 180.0;
+        }
+        if rotation_x < -90.0 {
+            rotation_x = -180.0 - rotation_x;
+            rotation_y = rotation_y + 180.0;
+        }
+
+        self.rotation_x = rotation_x;
+        self.rotation_y = rotation_y;
+    }
 }
 
 fn window() -> web_sys::Window {
@@ -209,17 +227,65 @@ use std::sync::{Arc, RwLock};
 pub fn start() -> Result<(), JsValue> {
     panic::set_hook(Box::new(console_error_panic_hook::hook));
 
-    let mut shower = PanoramaShower::new()?;
-    shower.draw().unwrap();
+    let shower = Arc::new(RwLock::new(PanoramaShower::new()?));
+    shower.read().unwrap().draw().unwrap();
 
     let f = Arc::new(RwLock::new(None));
     let g = f.clone();
+    let mouse_on = Arc::new(RwLock::new(false));
 
-    *g.write().unwrap() = Some(Closure::wrap(Box::new(move || {
-        shower.increase_rotation_y(1.0);
-        shower.draw().unwrap();
-        request_animation_frame(f.read().unwrap().as_ref().unwrap());
-    }) as Box<dyn FnMut()>));
+    {
+        let shower = shower.clone();
+        *g.write().unwrap() = Some(Closure::wrap(Box::new(move || {
+            // shower.write().unwrap().increase_rotation_y(1.0);
+            shower.read().unwrap().draw().unwrap();
+            request_animation_frame(f.read().unwrap().as_ref().unwrap());
+        }) as Box<dyn FnMut()>));
+    }
+
+    let document = web_sys::window().unwrap().document().unwrap();
+    let canvas = document.get_element_by_id("canvas").unwrap();
+    let canvas: web_sys::HtmlCanvasElement = canvas.dyn_into::<web_sys::HtmlCanvasElement>()?;
+    {
+        let mouse_on = mouse_on.clone();
+        let closure = Closure::wrap(Box::new(move |event: web_sys::MouseEvent| {
+            *mouse_on.write().unwrap() = true;
+        }) as Box<dyn FnMut(_)>);
+        canvas.add_event_listener_with_callback("mousedown", closure.as_ref().unchecked_ref())?;
+        closure.forget();
+    }
+    {
+        let shower = shower.clone();
+        let mouse_on = mouse_on.clone();
+        let closure = Closure::wrap(Box::new(move |event: web_sys::MouseEvent| {
+            if *mouse_on.read().unwrap() {
+                shower.write().unwrap().increase_rotation_y(0.3 * event.movement_x() as f32);
+                shower.write().unwrap().increase_rotation_x(-0.3 * event.movement_y() as f32);
+            }
+        }) as Box<dyn FnMut(_)>);
+        canvas.add_event_listener_with_callback("mousemove", closure.as_ref().unchecked_ref())?;
+        closure.forget();
+    }
+    {
+        let shower = shower.clone();
+        let mouse_on = mouse_on.clone();
+        let closure = Closure::wrap(Box::new(move |event: web_sys::MouseEvent| {
+            *mouse_on.write().unwrap() = false;
+            shower.write().unwrap().modify_rotation();
+        }) as Box<dyn FnMut(_)>);
+        canvas.add_event_listener_with_callback("mouseup", closure.as_ref().unchecked_ref())?;
+        closure.forget();
+    }
+    {
+        let shower = shower.clone();
+        let mouse_on = mouse_on.clone();
+        let closure = Closure::wrap(Box::new(move |event: web_sys::MouseEvent| {
+            *mouse_on.write().unwrap() = false;
+            shower.write().unwrap().modify_rotation();
+        }) as Box<dyn FnMut(_)>);
+        canvas.add_event_listener_with_callback("mouseout", closure.as_ref().unchecked_ref())?;
+        closure.forget();
+    }
 
     request_animation_frame(g.read().unwrap().as_ref().unwrap());
     Ok(())
