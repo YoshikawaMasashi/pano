@@ -5,7 +5,8 @@ import * as wasm from '../pano-rs/pkg/pano.js';
 async function run() {
 	await init('../pano-rs/pkg/pano_bg.wasm');
     console.log(wasm);
-    wasm.show_panorama();
+    // wasm.show_panorama();
+    wasm.start();
     /*
     var xrApp = new wasm.XrApp();
     xrApp.init()
