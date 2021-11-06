@@ -142,10 +142,35 @@ impl PanoramaShower {
     }
 }
 
+fn window() -> web_sys::Window {
+    web_sys::window().expect("no global `window` exists")
+}
+
+fn request_animation_frame(f: &Closure<dyn FnMut()>) {
+    window()
+        .request_animation_frame(f.as_ref().unchecked_ref())
+        .expect("should register `requestAnimationFrame` OK");
+}
+
+use std::cell::RefCell;
+use std::rc::Rc;
+
 #[wasm_bindgen(start)]
 pub fn start() -> Result<(), JsValue> {
     let shower = PanoramaShower::new()?;
     shower.draw(0.0, 0.0);
+
+    let mut i = 0;
+    let f = Rc::new(RefCell::new(None));
+    let g = f.clone();
+
+    *g.borrow_mut() =  Some(Closure::wrap(Box::new(move || {
+        shower.draw(0.0, i as f32);
+        i += 1;
+        request_animation_frame(f.borrow().as_ref().unwrap());
+    }) as Box<dyn FnMut()>));
+
+    request_animation_frame(g.borrow().as_ref().unwrap());
     Ok(())
 }
 
