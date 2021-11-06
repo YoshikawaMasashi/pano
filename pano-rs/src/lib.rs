@@ -1,4 +1,4 @@
-mod webgl;
+pub mod webgl;
 
 use wasm_bindgen::prelude::*;
 

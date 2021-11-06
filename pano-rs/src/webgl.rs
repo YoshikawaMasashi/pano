@@ -1,7 +1,44 @@
+use std::collections::HashMap;
+use std::io::Cursor;
+use std::path::Path;
 
+use js_sys::{ArrayBuffer, Uint8Array};
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
-use web_sys::{WebGl2RenderingContext, WebGlProgram, WebGlShader};
+use web_sys::{WebGl2RenderingContext, WebGlProgram, WebGlShader, WebGlUniformLocation};
+
+#[wasm_bindgen]
+extern "C" {
+    type Buffer;
+}
+
+#[wasm_bindgen(raw_module = "../../src/fs.js")]
+extern "C" {
+    #[wasm_bindgen(js_name = readFileSync, catch)]
+    fn read_file(path: &str) -> Result<Buffer, JsValue>;
+
+    #[wasm_bindgen(method, getter)]
+    fn buffer(this: &Buffer) -> ArrayBuffer;
+
+    #[wasm_bindgen(method, getter, js_name = byteOffset)]
+    fn byte_offset(this: &Buffer) -> u32;
+
+    #[wasm_bindgen(method, getter)]
+    fn length(this: &Buffer) -> u32;
+}
+
+pub fn read_image(path: &Path) -> image::RgbaImage {
+    let buffer = read_file(path.to_str().unwrap()).unwrap();
+    let buffer: Vec<u8> = Uint8Array::new_with_byte_offset_and_length(
+        &buffer.buffer(),
+        buffer.byte_offset(),
+        buffer.length(),
+    )
+    .to_vec();
+    image::load(Cursor::new(buffer.as_slice()), image::ImageFormat::Png)
+        .unwrap()
+        .to_rgba8()
+}
 
 #[wasm_bindgen(start)]
 pub fn start() -> Result<(), JsValue> {
@@ -13,82 +50,84 @@ pub fn start() -> Result<(), JsValue> {
         .get_context("webgl2")?
         .unwrap()
         .dyn_into::<WebGl2RenderingContext>()?;
+    context.clear_color(0.0, 0.0, 0.0, 1.0);
 
     let vert_shader = compile_shader(
         &context,
         WebGl2RenderingContext::VERTEX_SHADER,
         r##"#version 300 es
- 
-        in vec4 position;
-
-        void main() {
-        
-            gl_Position = position;
-        }
-        "##,
+        const vec3[4] POSITIONS = vec3[](
+        vec3(-1.0, -1.0, 0.0),
+        vec3(1.0, -1.0, 0.0),
+        vec3(-1.0, 1.0, 0.0),
+        vec3(1.0, 1.0, 0.0)
+        );
+        const int[6] INDICES = int[](
+        0, 1, 2,
+        3, 2, 1
+        );
+        out vec2 v_uv;
+        void main(void) {
+        vec3 position = POSITIONS[INDICES[gl_VertexID]];
+        gl_Position = vec4(position * 0.5, 1.0);
+        v_uv = position.xy * 0.5 + 0.5;
+        }"##,
     )?;
-
     let frag_shader = compile_shader(
         &context,
         WebGl2RenderingContext::FRAGMENT_SHADER,
         r##"#version 300 es
-    
         precision highp float;
-        out vec4 outColor;
-        
-        void main() {
-            outColor = vec4(1, 1, 1, 1);
+        in vec2 v_uv;
+        out vec4 o_color;
+        uniform sampler2D u_texture;
+        void main(void) {
+        vec3 color = texture(u_texture, v_uv).xyz;
+        o_color = vec4(color, 1.0);
         }
         "##,
     )?;
     let program = link_program(&context, &vert_shader, &frag_shader)?;
-    context.use_program(Some(&program));
+    let uniforms =
+        get_uniform_locations(&context, &program, vec!["u_texture".to_string()]).unwrap();
 
-    let vertices: [f32; 9] = [-0.7, -0.7, 0.0, 0.7, -0.7, 0.0, 0.0, 0.7, 0.0];
+    let image = read_image(Path::new("../pano-rs/panorama_image_transfer.png"));
+    let tex_width = image.width();
+    let tex_height = image.height();
 
-    let position_attribute_location = context.get_attrib_location(&program, "position");
-    let buffer = context.create_buffer().ok_or("Failed to create buffer")?;
-    context.bind_buffer(WebGl2RenderingContext::ARRAY_BUFFER, Some(&buffer));
+    let texture = context.create_texture().unwrap();
+    context.bind_texture(WebGl2RenderingContext::TEXTURE_2D, Some(&texture));
+    context.tex_image_2d_with_i32_and_i32_and_i32_and_format_and_type_and_opt_u8_array(
+        WebGl2RenderingContext::TEXTURE_2D,
+        0,
+        WebGl2RenderingContext::RGBA as i32,
+        tex_width as i32,
+        tex_height as i32,
+        0,
+        WebGl2RenderingContext::RGBA,
+        WebGl2RenderingContext::UNSIGNED_BYTE,
+        //Some(pixels.as_slice()),
+        Some(image.as_raw().as_slice()),
+    )?;
+    context.tex_parameteri(
+        WebGl2RenderingContext::TEXTURE_2D,
+        WebGl2RenderingContext::TEXTURE_MAG_FILTER,
+        WebGl2RenderingContext::LINEAR as i32,
+    );
+    context.tex_parameteri(
+        WebGl2RenderingContext::TEXTURE_2D,
+        WebGl2RenderingContext::TEXTURE_MIN_FILTER,
+        WebGl2RenderingContext::LINEAR as i32,
+    );
+    context.bind_texture(WebGl2RenderingContext::TEXTURE_2D, None);
 
-    // Note that `Float32Array::view` is somewhat dangerous (hence the
-    // `unsafe`!). This is creating a raw view into our module's
-    // `WebAssembly.Memory` buffer, but if we allocate more pages for ourself
-    // (aka do a memory allocation in Rust) it'll cause the buffer to change,
-    // causing the `Float32Array` to be invalid.
-    //
-    // As a result, after `Float32Array::view` we have to be very careful not to
-    // do any memory allocations before it's dropped.
-    unsafe {
-        let positions_array_buf_view = js_sys::Float32Array::view(&vertices);
-
-        context.buffer_data_with_array_buffer_view(
-            WebGl2RenderingContext::ARRAY_BUFFER,
-            &positions_array_buf_view,
-            WebGl2RenderingContext::STATIC_DRAW,
-        );
-    }
-
-    let vao = context
-        .create_vertex_array()
-        .ok_or("Could not create vertex array object")?;
-    context.bind_vertex_array(Some(&vao));
-
-    context.vertex_attrib_pointer_with_i32(0, 3, WebGl2RenderingContext::FLOAT, false, 0, 0);
-    context.enable_vertex_attrib_array(position_attribute_location as u32);
-
-    context.bind_vertex_array(Some(&vao));
-
-    let vert_count = (vertices.len() / 3) as i32;
-    draw(&context, vert_count);
-
-    Ok(())
-}
-
-fn draw(context: &WebGl2RenderingContext, vert_count: i32) {
-    context.clear_color(0.0, 0.0, 0.0, 1.0);
     context.clear(WebGl2RenderingContext::COLOR_BUFFER_BIT);
-
-    context.draw_arrays(WebGl2RenderingContext::TRIANGLES, 0, vert_count);
+    context.use_program(Some(&program));
+    context.active_texture(WebGl2RenderingContext::TEXTURE0);
+    context.bind_texture(WebGl2RenderingContext::TEXTURE_2D, Some(&texture));
+    context.uniform1i(Some(&uniforms["u_texture"]), 0);
+    context.draw_arrays(WebGl2RenderingContext::TRIANGLES, 0, 6);
+    Ok(())
 }
 
 pub fn compile_shader(
@@ -139,4 +178,19 @@ pub fn link_program(
             .get_program_info_log(&program)
             .unwrap_or_else(|| String::from("Unknown error creating program object")))
     }
+}
+
+pub fn get_uniform_locations(
+    context: &WebGl2RenderingContext,
+    program: &WebGlProgram,
+    keys: Vec<String>,
+) -> Result<HashMap<String, WebGlUniformLocation>, String> {
+    let mut locations: HashMap<String, WebGlUniformLocation> = HashMap::new();
+    for key in keys {
+        locations.insert(
+            key.clone(),
+            context.get_uniform_location(program, &key).unwrap(),
+        );
+    }
+    Ok(locations)
 }

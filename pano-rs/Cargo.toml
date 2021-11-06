@@ -10,6 +10,10 @@ crate-type = ["cdylib"]
 [dependencies]
 js-sys = "0.3.55"
 wasm-bindgen = "0.2.78"
+# glium = "0.30.2"
+image = "0.23"
+# rand = "0.8.4"
+# palette = "0.6.0"
 
 [dependencies.web-sys]
 version = "0.3.4"
@@ -23,4 +27,6 @@ features = [
   'WebGlProgram',
   'WebGlShader',
   'Window',
+  'WebGlUniformLocation',
+  'WebGlTexture',
 ]
