@@ -33,17 +33,17 @@ impl PanoramaShower {
         context.clear_color(0.0, 0.0, 0.0, 1.0);
 
         let vert_shader = read_shader(
-            Path::new("../pano-rs/src/show_panorama.vert"),
+            Path::new("./pano-rs/src/show_panorama.vert"),
             &context,
             WebGl2RenderingContext::VERTEX_SHADER,
         )?;
         let frag_shader = read_shader(
-            Path::new("../pano-rs/src/show_panorama.frag"),
+            Path::new("./pano-rs/src/show_panorama.frag"),
             &context,
             WebGl2RenderingContext::FRAGMENT_SHADER,
         )?;
 
-        let image = read_image(Path::new("../pano-rs/panorama_image_transfer.png"));
+        let image = read_image(Path::new("./pano-rs/panorama_image_transfer.png"));
         let tex_width = image.width();
         let tex_height = image.height();
 

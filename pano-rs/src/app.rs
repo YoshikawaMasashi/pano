@@ -38,22 +38,22 @@ impl App {
         context.enable(WebGl2RenderingContext::BLEND);
 
         let show_panorama_vert_shader = read_shader(
-            Path::new("../pano-rs/src/show_panorama.vert"),
+            Path::new("./pano-rs/src/show_panorama.vert"),
             &context,
             WebGl2RenderingContext::VERTEX_SHADER,
         )?;
         let show_panorama_frag_shader = read_shader(
-            Path::new("../pano-rs/src/show_panorama.frag"),
+            Path::new("./pano-rs/src/show_panorama.frag"),
             &context,
             WebGl2RenderingContext::FRAGMENT_SHADER,
         )?;
         let draw_circle_vert_shader = read_shader(
-            Path::new("../pano-rs/src/draw_circle.vert"),
+            Path::new("./pano-rs/src/draw_circle.vert"),
             &context,
             WebGl2RenderingContext::VERTEX_SHADER,
         )?;
         let draw_circle_frag_shader = read_shader(
-            Path::new("../pano-rs/src/draw_circle.frag"),
+            Path::new("./pano-rs/src/draw_circle.frag"),
             &context,
             WebGl2RenderingContext::FRAGMENT_SHADER,
         )?;
@@ -311,7 +311,7 @@ pub fn start() -> Result<(), JsValue> {
     panic::set_hook(Box::new(console_error_panic_hook::hook));
 
     let app = App::new()?;
-    app.read_image_to_work_texture(Path::new("../pano-rs/panorama_image_transfer.png"))?;
+    app.read_image_to_work_texture(Path::new("./pano-rs/panorama_image_transfer.png"))?;
     app.draw_circle()?;
     app.show()?;
     app.save(Path::new("./panorama_image_transfer.png"))?;
