@@ -18,6 +18,8 @@ pub struct App {
     work_texture: Arc<Mutex<WebGlTexture>>,
     show_panorama_vert_shader: WebGlShader,
     show_panorama_frag_shader: WebGlShader,
+    draw_circle_vert_shader: WebGlShader,
+    draw_circle_frag_shader: WebGlShader,
     rotation_x: f32,
     rotation_y: f32,
 }
@@ -44,10 +46,19 @@ impl App {
             &context,
             WebGl2RenderingContext::FRAGMENT_SHADER,
         )?;
+        let draw_circle_vert_shader = read_shader(
+            Path::new("../pano-rs/src/draw_circle.vert"),
+            &context,
+            WebGl2RenderingContext::VERTEX_SHADER,
+        )?;
+        let draw_circle_frag_shader = read_shader(
+            Path::new("../pano-rs/src/draw_circle.frag"),
+            &context,
+            WebGl2RenderingContext::FRAGMENT_SHADER,
+        )?;
 
         let work_texture = context.create_texture().unwrap();
 
-        let pixels: Vec<u8> = vec![0; WORK_TEXTURE_WIDTH * WORK_TEXTURE_HEIGHT * 4];
         context.bind_texture(WebGl2RenderingContext::TEXTURE_2D, Some(&work_texture));
         context.tex_image_2d_with_i32_and_i32_and_i32_and_format_and_type_and_opt_u8_array(
             WebGl2RenderingContext::TEXTURE_2D,
@@ -58,7 +69,7 @@ impl App {
             0,
             WebGl2RenderingContext::RGBA,
             WebGl2RenderingContext::UNSIGNED_BYTE,
-            Some(pixels.as_slice()),
+            None,
         )?;
         context.tex_parameteri(
             WebGl2RenderingContext::TEXTURE_2D,
@@ -76,6 +87,8 @@ impl App {
             work_texture: Arc::new(Mutex::new(work_texture)),
             show_panorama_vert_shader,
             show_panorama_frag_shader,
+            draw_circle_vert_shader,
+            draw_circle_frag_shader,
             rotation_x: 0.0,
             rotation_y: 0.0,
         })
@@ -123,6 +136,34 @@ impl App {
         Ok(())
     }
 
+    pub fn draw_circle(&self) -> Result<(), JsValue> {
+        let document = web_sys::window().unwrap().document().unwrap();
+        let canvas = document.get_element_by_id("canvas").unwrap();
+        let canvas: web_sys::HtmlCanvasElement = canvas.dyn_into::<web_sys::HtmlCanvasElement>()?;
+
+        let context = canvas
+            .get_context("webgl2")?
+            .unwrap()
+            .dyn_into::<WebGl2RenderingContext>()?;
+        
+        let frame_buffer = context.create_framebuffer().unwrap();
+        context.bind_framebuffer(WebGl2RenderingContext::FRAMEBUFFER, Some(&frame_buffer));
+
+        let work_texture = self.work_texture.lock().unwrap();
+        context.framebuffer_texture_2d(
+            WebGl2RenderingContext::FRAMEBUFFER,
+            WebGl2RenderingContext::COLOR_ATTACHMENT0,
+            WebGl2RenderingContext::TEXTURE_2D,
+            Some(&work_texture),
+            0
+        );
+        context.viewport(0, 0, WORK_TEXTURE_WIDTH as i32, WORK_TEXTURE_HEIGHT as i32);
+
+        context.bind_framebuffer(WebGl2RenderingContext::FRAMEBUFFER, None);
+
+        Ok(())
+    }
+
     pub fn show(&self) -> Result<(), JsValue> {
         let document = web_sys::window().unwrap().document().unwrap();
         let canvas = document.get_element_by_id("canvas").unwrap();
@@ -133,6 +174,7 @@ impl App {
             .unwrap()
             .dyn_into::<WebGl2RenderingContext>()?;
         context.clear_color(0.0, 0.0, 0.0, 1.0);
+        context.viewport(0, 0, canvas.width() as i32, canvas.height() as i32);
         let program = link_program(
             &context,
             &self.show_panorama_vert_shader,
@@ -169,6 +211,7 @@ pub fn start() -> Result<(), JsValue> {
 
     let app = App::new()?;
     app.read_image_to_work_texture(Path::new("../pano-rs/panorama_image_transfer.png"))?;
+    app.draw_circle()?;
     app.show()?;
 
     Ok(())
