@@ -8,7 +8,7 @@
     "react-dom": "^17.0.2"
   },
   "scripts": {
-    "build": "esbuild ./src/renderer/app.jsx --bundle --outfile=./src/pano.js",
+    "build": "esbuild ./src/renderer/app.tsx --bundle --outfile=./src/pano.js",
     "start": "electron ./src",
     "wasm": "cd pano-rs && wasm-pack build --target web"
   }
