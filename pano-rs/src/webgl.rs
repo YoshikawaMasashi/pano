@@ -40,6 +40,26 @@ pub fn read_image(path: &Path) -> image::RgbaImage {
         .to_rgba8()
 }
 
+pub fn read_shader(
+    path: &Path,
+    context: &WebGl2RenderingContext,
+    shader_type: u32
+) -> Result<WebGlShader, String> {
+    let buffer = read_file(path.to_str().unwrap()).unwrap();
+    let buffer: Vec<u8> = Uint8Array::new_with_byte_offset_and_length(
+        &buffer.buffer(),
+        buffer.byte_offset(),
+        buffer.length(),
+    )
+    .to_vec();
+    
+    compile_shader(
+        context,
+        shader_type,
+        std::str::from_utf8(buffer.as_slice()).unwrap(),
+    )
+}
+
 #[wasm_bindgen(start)]
 pub fn start() -> Result<(), JsValue> {
     let document = web_sys::window().unwrap().document().unwrap();
@@ -52,66 +72,15 @@ pub fn start() -> Result<(), JsValue> {
         .dyn_into::<WebGl2RenderingContext>()?;
     context.clear_color(0.0, 0.0, 0.0, 1.0);
 
-    let vert_shader = compile_shader(
+    let vert_shader = read_shader(
+        Path::new("../pano-rs/src/show_panorama.vert"),
         &context,
         WebGl2RenderingContext::VERTEX_SHADER,
-        r##"#version 300 es
-        const vec2[4] POSITIONS = vec2[](
-            vec2(-1.0, -1.0),
-            vec2(-1.0, 1.0),
-            vec2(1.0, 1.0),
-            vec2(1.0, -1.0)
-        );
-        const int[6] INDICES = int[](
-            0, 1, 2,
-            2, 3, 0
-        );
-        out vec2 fragment_position;
-        void main(void) {
-            vec2 position = POSITIONS[INDICES[gl_VertexID]];
-            gl_Position = vec4(position, 0.0, 1.0);
-            fragment_position = vec2(position.x, -position.y);
-        }"##,
     )?;
-    let frag_shader = compile_shader(
+    let frag_shader = read_shader(
+        Path::new("../pano-rs/src/show_panorama.frag"),
         &context,
         WebGl2RenderingContext::FRAGMENT_SHADER,
-        r##"#version 300 es
-        #define PI 3.1415926535897932384626
-        precision highp float;
-        in vec2 fragment_position;
-        out vec4 color;
-        uniform sampler2D tex;
-        void main(void) {
-            float rotation_x = 0.0;
-            float rotation_y = 0.0;
-            vec3 pt = vec3(fragment_position.x, fragment_position.y, 1.0);
-            pt = normalize(pt);
-            
-            float rotation_x_ = rotation_x / 180.0 * PI;
-            float rotation_y_ = rotation_y / 180.0 * PI;
-            mat3 rotation_x_mat = mat3(
-                vec3(1, 0.0, 0.0),
-                vec3(0.0, cos(rotation_x_), -sin(rotation_x_)),
-                vec3(0.0, sin(rotation_x_), cos(rotation_x_))
-            );
-            mat3 rotation_y_mat = mat3(
-                vec3(cos(rotation_y_), 0.0, sin(rotation_y_)),
-                vec3(0.0, 1.0, 0.0),
-                vec3(-sin(rotation_y_), 0.0, cos(rotation_y_))
-            );
-            mat3 rotation = rotation_y_mat * rotation_x_mat;
-            pt = rotation * pt;
-
-            float elevation = asin(pt.y);
-            float azimuth = sign(pt.x) * acos(pt.z / length(pt.xz)); // sign(pt.x) * acos(pt.z / cos(elevation));
-
-            vec2 tex_coords = vec2(azimuth / PI, elevation / PI * 2.0);
-            tex_coords = (tex_coords + 1.0) / 2.0;
-
-            color = texture(tex, tex_coords);
-        }
-        "##,
     )?;
     let program = link_program(&context, &vert_shader, &frag_shader)?;
     let uniforms =
@@ -132,7 +101,6 @@ pub fn start() -> Result<(), JsValue> {
         0,
         WebGl2RenderingContext::RGBA,
         WebGl2RenderingContext::UNSIGNED_BYTE,
-        //Some(pixels.as_slice()),
         Some(image.as_raw().as_slice()),
     )?;
     context.tex_parameteri(
