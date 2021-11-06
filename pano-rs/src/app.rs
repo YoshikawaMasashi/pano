@@ -7,13 +7,62 @@ use std::sync::{Arc, Mutex, RwLock};
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
 use web_sys::{WebGl2RenderingContext, WebGlShader, WebGlTexture};
+use yew::prelude::*;
 
 use crate::file_io::{read_image, write_image};
 use crate::webgl_utils::{get_uniform_locations, link_program, read_shader};
-use crate::model;
 
 const WORK_TEXTURE_WIDTH: usize = 3840;
 const WORK_TEXTURE_HEIGHT: usize = 1920;
+
+pub enum Msg {
+    AddOne,
+}
+
+pub struct Model {
+    // `ComponentLink` is like a reference to a component.
+    // It can be used to send messages to the component
+    link: ComponentLink<Self>,
+    value: i64,
+}
+
+impl Component for Model {
+    type Message = Msg;
+    type Properties = ();
+
+    fn create(_props: Self::Properties, link: ComponentLink<Self>) -> Self {
+        Self { link, value: 0 }
+    }
+
+    fn update(&mut self, msg: Self::Message) -> ShouldRender {
+        match msg {
+            Msg::AddOne => {
+                self.value += 1;
+                // the value has changed so we need to
+                // re-render for it to appear on the page
+                true
+            }
+        }
+    }
+
+    fn change(&mut self, _props: Self::Properties) -> ShouldRender {
+        // Should only return "true" if new properties are different to
+        // previously received properties.
+        // This component has no properties so we will always return "false".
+        false
+    }
+
+    fn view(&self) -> Html {
+        html! {
+            <div>
+                <p>{"Hello World!"}</p>
+                <canvas id="canvas" height="960" width="960"></canvas>
+                <button onclick=self.link.callback(|_| Msg::AddOne)>{ "+1" }</button>
+                <p>{ self.value }</p>
+            </div>
+        }
+    }
+}
 
 pub struct App {
     work_texture: Arc<Mutex<WebGlTexture>>,
@@ -253,7 +302,7 @@ impl App {
             0,
         );
         context.viewport(0, 0, WORK_TEXTURE_WIDTH as i32, WORK_TEXTURE_HEIGHT as i32);
-    
+
         let mut data: Vec<u8> = vec![0; WORK_TEXTURE_WIDTH * WORK_TEXTURE_HEIGHT * 4];
         context.read_pixels_with_opt_u8_array(
             0,
@@ -311,7 +360,7 @@ fn request_animation_frame(f: &Closure<dyn FnMut()>) {
 pub fn start() -> Result<(), JsValue> {
     panic::set_hook(Box::new(console_error_panic_hook::hook));
 
-    yew::start_app::<model::Model>();
+    yew::start_app::<Model>();
 
     let app = App::new()?;
     app.read_image_to_work_texture(Path::new("./pano-rs/panorama_image_transfer.png"))?;

@@ -12,6 +12,6 @@
   "scripts": {
     "build": "esbuild ./src/renderer/app.tsx --bundle --outfile=./src/pano.js",
     "start": "electron ./src",
-    "wasm": "cd pano-rs && wasm-pack build --target web"
+    "wasm": "cd pano-rs && wasm-pack build --target web && cargo fmt"
   }
 }
