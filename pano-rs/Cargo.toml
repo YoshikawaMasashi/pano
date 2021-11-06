@@ -9,13 +9,14 @@ crate-type = ["cdylib"]
 
 [dependencies]
 js-sys = "0.3.55"
-wasm-bindgen = "0.2.78"
-# glium = "0.30.2"
 image = "0.23"
-# rand = "0.8.4"
 # palette = "0.6.0"
 console_error_panic_hook = "0.1.7"
-
+futures = "0.3.4"
+wasm-bindgen = {version = "0.2.78", features = ["serde-serialize"]}
+wasm-bindgen-futures = "0.4.28"
+serde = { version = "1.0.80", features = ["derive"] }
+serde_derive = "^1.0.59"
 
 [dependencies.web-sys]
 version = "0.3.4"
@@ -32,4 +33,45 @@ features = [
   'WebGlUniformLocation',
   'WebGlTexture',
   'MouseEvent',
+  'Gpu',
+  'Headers',
+  'Navigator',
+  'Request',
+  'RequestInit',
+  'RequestMode',
+  'Response',
+  'WebGlActiveInfo',
+  'WebGlFramebuffer',
+  'Xr',
+  'XrBoundedReferenceSpace',
+  'XrEye',
+  'XrFrame',
+  'XrHandedness',
+  'XrInputSource',
+  'XrInputSourceArray',
+  'XrInputSourceEvent',
+  'XrInputSourceEventInit',
+  'XrInputSourcesChangeEvent',
+  'XrPose',
+  'XrReferenceSpace',
+  'XrReferenceSpaceEvent',
+  'XrReferenceSpaceEventInit',
+  'XrReferenceSpaceType',
+  'XrRenderState',
+  'XrRenderStateInit',
+  'XrRigidTransform',
+  'XrSession',
+  'XrSessionEvent',
+  'XrSessionEventInit',
+  'XrSessionInit',
+  'XrSessionMode',
+  'XrSpace',
+  'XrTargetRayMode',
+  'XrView',
+  'XrViewerPose',
+  'XrViewport',
+  'XrVisibilityState',
+  'XrWebGlLayer',
+  'XrWebGlLayerInit',
+  'console'
 ]
