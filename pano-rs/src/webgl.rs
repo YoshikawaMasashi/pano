@@ -84,7 +84,7 @@ pub fn start() -> Result<(), JsValue> {
     )?;
     let program = link_program(&context, &vert_shader, &frag_shader)?;
     let uniforms =
-        get_uniform_locations(&context, &program, vec!["tex".to_string()]).unwrap();
+        get_uniform_locations(&context, &program, vec!["tex".to_string(), "rotation_x".to_string(), "rotation_y".to_string()]).unwrap();
 
     let image = read_image(Path::new("../pano-rs/panorama_image_transfer.png"));
     let tex_width = image.width();
@@ -120,6 +120,8 @@ pub fn start() -> Result<(), JsValue> {
     context.active_texture(WebGl2RenderingContext::TEXTURE0);
     context.bind_texture(WebGl2RenderingContext::TEXTURE_2D, Some(&texture));
     context.uniform1i(Some(&uniforms["tex"]), 0);
+    context.uniform1f(Some(&uniforms["rotation_x"]), 0.0);
+    context.uniform1f(Some(&uniforms["rotation_y"]), 0.0);
     context.draw_arrays(WebGl2RenderingContext::TRIANGLES, 0, 6);
     Ok(())
 }

@@ -4,9 +4,9 @@ precision highp float;
 in vec2 fragment_position;
 out vec4 color;
 uniform sampler2D tex;
+uniform float rotation_x;
+uniform float rotation_y;
 void main(void) {
-    float rotation_x = 0.0;
-    float rotation_y = 0.0;
     vec3 pt = vec3(fragment_position.x, fragment_position.y, 1.0);
     pt = normalize(pt);
     
