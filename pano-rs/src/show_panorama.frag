@@ -1,11 +1,15 @@
 #version 300 es
 #define PI 3.1415926535897932384626
+
 precision highp float;
+
 in vec2 fragment_position;
 out vec4 color;
+
 uniform sampler2D tex;
 uniform float rotation_x;
 uniform float rotation_y;
+
 void main(void) {
     vec3 pt = vec3(fragment_position.x, fragment_position.y, 1.0);
     pt = normalize(pt);

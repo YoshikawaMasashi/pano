@@ -5,7 +5,7 @@ use std::path::Path;
 use js_sys::{ArrayBuffer, Uint8Array};
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
-use web_sys::{WebGl2RenderingContext, WebGlProgram, WebGlShader, WebGlUniformLocation};
+use web_sys::{WebGl2RenderingContext, WebGlProgram, WebGlShader, WebGlUniformLocation, WebGlTexture};
 
 #[wasm_bindgen]
 extern "C" {
@@ -60,69 +60,92 @@ pub fn read_shader(
     )
 }
 
+struct PanoramaShower {
+    context: WebGl2RenderingContext,
+    texture: WebGlTexture,
+    uniforms: HashMap<String, WebGlUniformLocation>,
+}
+
+impl PanoramaShower {
+    pub fn new() -> Result<Self, JsValue> {
+        let document = web_sys::window().unwrap().document().unwrap();
+        let canvas = document.get_element_by_id("canvas").unwrap();
+        let canvas: web_sys::HtmlCanvasElement = canvas.dyn_into::<web_sys::HtmlCanvasElement>()?;
+    
+        let context = canvas
+            .get_context("webgl2")?
+            .unwrap()
+            .dyn_into::<WebGl2RenderingContext>()?;
+        context.clear_color(0.0, 0.0, 0.0, 1.0);
+    
+        let vert_shader = read_shader(
+            Path::new("../pano-rs/src/show_panorama.vert"),
+            &context,
+            WebGl2RenderingContext::VERTEX_SHADER,
+        )?;
+        let frag_shader = read_shader(
+            Path::new("../pano-rs/src/show_panorama.frag"),
+            &context,
+            WebGl2RenderingContext::FRAGMENT_SHADER,
+        )?;
+        let program = link_program(&context, &vert_shader, &frag_shader)?;
+        let uniforms =
+            get_uniform_locations(&context, &program, vec!["tex".to_string(), "rotation_x".to_string(), "rotation_y".to_string()]).unwrap();
+    
+        let image = read_image(Path::new("../pano-rs/panorama_image_transfer.png"));
+        let tex_width = image.width();
+        let tex_height = image.height();
+    
+        let texture = context.create_texture().unwrap();
+        context.bind_texture(WebGl2RenderingContext::TEXTURE_2D, Some(&texture));
+        context.tex_image_2d_with_i32_and_i32_and_i32_and_format_and_type_and_opt_u8_array(
+            WebGl2RenderingContext::TEXTURE_2D,
+            0,
+            WebGl2RenderingContext::RGBA as i32,
+            tex_width as i32,
+            tex_height as i32,
+            0,
+            WebGl2RenderingContext::RGBA,
+            WebGl2RenderingContext::UNSIGNED_BYTE,
+            Some(image.as_raw().as_slice()),
+        )?;
+        context.tex_parameteri(
+            WebGl2RenderingContext::TEXTURE_2D,
+            WebGl2RenderingContext::TEXTURE_MAG_FILTER,
+            WebGl2RenderingContext::LINEAR as i32,
+        );
+        context.tex_parameteri(
+            WebGl2RenderingContext::TEXTURE_2D,
+            WebGl2RenderingContext::TEXTURE_MIN_FILTER,
+            WebGl2RenderingContext::LINEAR as i32,
+        );
+        context.bind_texture(WebGl2RenderingContext::TEXTURE_2D, None);
+        context.use_program(Some(&program));
+
+        Ok(
+            PanoramaShower {
+                context,
+                texture,
+                uniforms,
+            }
+        )
+    }
+
+    pub fn draw(&self, rotation_x: f32, rotation_y: f32) {
+        self.context.clear(WebGl2RenderingContext::COLOR_BUFFER_BIT);
+        self.context.active_texture(WebGl2RenderingContext::TEXTURE0);
+        self.context.bind_texture(WebGl2RenderingContext::TEXTURE_2D, Some(&self.texture));
+        self.context.uniform1i(Some(&self.uniforms["tex"]), 0);
+        self.context.uniform1f(Some(&self.uniforms["rotation_x"]), rotation_x);
+        self.context.uniform1f(Some(&self.uniforms["rotation_y"]), rotation_y);
+        self.context.draw_arrays(WebGl2RenderingContext::TRIANGLES, 0, 6);
+    }
+}
+
 #[wasm_bindgen(start)]
 pub fn start() -> Result<(), JsValue> {
-    let document = web_sys::window().unwrap().document().unwrap();
-    let canvas = document.get_element_by_id("canvas").unwrap();
-    let canvas: web_sys::HtmlCanvasElement = canvas.dyn_into::<web_sys::HtmlCanvasElement>()?;
-
-    let context = canvas
-        .get_context("webgl2")?
-        .unwrap()
-        .dyn_into::<WebGl2RenderingContext>()?;
-    context.clear_color(0.0, 0.0, 0.0, 1.0);
-
-    let vert_shader = read_shader(
-        Path::new("../pano-rs/src/show_panorama.vert"),
-        &context,
-        WebGl2RenderingContext::VERTEX_SHADER,
-    )?;
-    let frag_shader = read_shader(
-        Path::new("../pano-rs/src/show_panorama.frag"),
-        &context,
-        WebGl2RenderingContext::FRAGMENT_SHADER,
-    )?;
-    let program = link_program(&context, &vert_shader, &frag_shader)?;
-    let uniforms =
-        get_uniform_locations(&context, &program, vec!["tex".to_string(), "rotation_x".to_string(), "rotation_y".to_string()]).unwrap();
-
-    let image = read_image(Path::new("../pano-rs/panorama_image_transfer.png"));
-    let tex_width = image.width();
-    let tex_height = image.height();
-
-    let texture = context.create_texture().unwrap();
-    context.bind_texture(WebGl2RenderingContext::TEXTURE_2D, Some(&texture));
-    context.tex_image_2d_with_i32_and_i32_and_i32_and_format_and_type_and_opt_u8_array(
-        WebGl2RenderingContext::TEXTURE_2D,
-        0,
-        WebGl2RenderingContext::RGBA as i32,
-        tex_width as i32,
-        tex_height as i32,
-        0,
-        WebGl2RenderingContext::RGBA,
-        WebGl2RenderingContext::UNSIGNED_BYTE,
-        Some(image.as_raw().as_slice()),
-    )?;
-    context.tex_parameteri(
-        WebGl2RenderingContext::TEXTURE_2D,
-        WebGl2RenderingContext::TEXTURE_MAG_FILTER,
-        WebGl2RenderingContext::LINEAR as i32,
-    );
-    context.tex_parameteri(
-        WebGl2RenderingContext::TEXTURE_2D,
-        WebGl2RenderingContext::TEXTURE_MIN_FILTER,
-        WebGl2RenderingContext::LINEAR as i32,
-    );
-    context.bind_texture(WebGl2RenderingContext::TEXTURE_2D, None);
-
-    context.clear(WebGl2RenderingContext::COLOR_BUFFER_BIT);
-    context.use_program(Some(&program));
-    context.active_texture(WebGl2RenderingContext::TEXTURE0);
-    context.bind_texture(WebGl2RenderingContext::TEXTURE_2D, Some(&texture));
-    context.uniform1i(Some(&uniforms["tex"]), 0);
-    context.uniform1f(Some(&uniforms["rotation_x"]), 0.0);
-    context.uniform1f(Some(&uniforms["rotation_y"]), 0.0);
-    context.draw_arrays(WebGl2RenderingContext::TRIANGLES, 0, 6);
+    let shower = PanoramaShower::new()?;
+    shower.draw(0.0, 0.0);
     Ok(())
 }
 
