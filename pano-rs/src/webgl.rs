@@ -1,11 +1,16 @@
+extern crate console_error_panic_hook;
+
 use std::collections::HashMap;
 use std::io::Cursor;
+use std::panic;
 use std::path::Path;
 
 use js_sys::{ArrayBuffer, Uint8Array};
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
-use web_sys::{WebGl2RenderingContext, WebGlProgram, WebGlShader, WebGlUniformLocation, WebGlTexture};
+use web_sys::{
+    WebGl2RenderingContext, WebGlProgram, WebGlShader, WebGlTexture, WebGlUniformLocation,
+};
 
 #[wasm_bindgen]
 extern "C" {
@@ -43,7 +48,7 @@ pub fn read_image(path: &Path) -> image::RgbaImage {
 pub fn read_shader(
     path: &Path,
     context: &WebGl2RenderingContext,
-    shader_type: u32
+    shader_type: u32,
 ) -> Result<WebGlShader, String> {
     let buffer = read_file(path.to_str().unwrap()).unwrap();
     let buffer: Vec<u8> = Uint8Array::new_with_byte_offset_and_length(
@@ -52,7 +57,7 @@ pub fn read_shader(
         buffer.length(),
     )
     .to_vec();
-    
+
     compile_shader(
         context,
         shader_type,
@@ -61,9 +66,9 @@ pub fn read_shader(
 }
 
 struct PanoramaShower {
-    context: WebGl2RenderingContext,
     texture: WebGlTexture,
-    uniforms: HashMap<String, WebGlUniformLocation>,
+    vert_shader: WebGlShader,
+    frag_shader: WebGlShader,
     rotation_x: f32,
     rotation_y: f32,
 }
@@ -73,13 +78,13 @@ impl PanoramaShower {
         let document = web_sys::window().unwrap().document().unwrap();
         let canvas = document.get_element_by_id("canvas").unwrap();
         let canvas: web_sys::HtmlCanvasElement = canvas.dyn_into::<web_sys::HtmlCanvasElement>()?;
-    
+
         let context = canvas
             .get_context("webgl2")?
             .unwrap()
             .dyn_into::<WebGl2RenderingContext>()?;
         context.clear_color(0.0, 0.0, 0.0, 1.0);
-    
+
         let vert_shader = read_shader(
             Path::new("../pano-rs/src/show_panorama.vert"),
             &context,
@@ -90,14 +95,11 @@ impl PanoramaShower {
             &context,
             WebGl2RenderingContext::FRAGMENT_SHADER,
         )?;
-        let program = link_program(&context, &vert_shader, &frag_shader)?;
-        let uniforms =
-            get_uniform_locations(&context, &program, vec!["tex".to_string(), "rotation_x".to_string(), "rotation_y".to_string()]).unwrap();
-    
+
         let image = read_image(Path::new("../pano-rs/panorama_image_transfer.png"));
         let tex_width = image.width();
         let tex_height = image.height();
-    
+
         let texture = context.create_texture().unwrap();
         context.bind_texture(WebGl2RenderingContext::TEXTURE_2D, Some(&texture));
         context.tex_image_2d_with_i32_and_i32_and_i32_and_format_and_type_and_opt_u8_array(
@@ -122,28 +124,48 @@ impl PanoramaShower {
             WebGl2RenderingContext::LINEAR as i32,
         );
         context.bind_texture(WebGl2RenderingContext::TEXTURE_2D, None);
-        context.use_program(Some(&program));
 
-        Ok(
-            PanoramaShower {
-                context,
-                texture,
-                uniforms,
-                rotation_x: 0.0,
-                rotation_y: 0.0,
-            }
-        )
+        Ok(PanoramaShower {
+            texture,
+            rotation_x: 0.0,
+            rotation_y: 0.0,
+            vert_shader,
+            frag_shader,
+        })
     }
 
-    pub fn draw(&self) {
-        self.context.clear(WebGl2RenderingContext::COLOR_BUFFER_BIT);
-        self.context.active_texture(WebGl2RenderingContext::TEXTURE0);
-        self.context.bind_texture(WebGl2RenderingContext::TEXTURE_2D, Some(&self.texture));
-        self.context.uniform1i(Some(&self.uniforms["tex"]), 0);
-        self.context.uniform1f(Some(&self.uniforms["rotation_x"]), self.rotation_x);
-        self.context.uniform1f(Some(&self.uniforms["rotation_y"]), self.rotation_y);
-        self.context.draw_arrays(WebGl2RenderingContext::TRIANGLES, 0, 6);
-        self.context.bind_texture(WebGl2RenderingContext::TEXTURE_2D, None);
+    pub fn draw(&self) -> Result<(), JsValue> {
+        let document = web_sys::window().unwrap().document().unwrap();
+        let canvas = document.get_element_by_id("canvas").unwrap();
+        let canvas: web_sys::HtmlCanvasElement = canvas.dyn_into::<web_sys::HtmlCanvasElement>()?;
+
+        let context = canvas
+            .get_context("webgl2")?
+            .unwrap()
+            .dyn_into::<WebGl2RenderingContext>()?;
+        context.clear_color(0.0, 0.0, 0.0, 1.0);
+        let program = link_program(&context, &self.vert_shader, &self.frag_shader)?;
+        let uniforms = get_uniform_locations(
+            &context,
+            &program,
+            vec![
+                "tex".to_string(),
+                "rotation_x".to_string(),
+                "rotation_y".to_string(),
+            ],
+        )?;
+        context.use_program(Some(&program));
+
+        context.clear(WebGl2RenderingContext::COLOR_BUFFER_BIT);
+        context.active_texture(WebGl2RenderingContext::TEXTURE0);
+        context.bind_texture(WebGl2RenderingContext::TEXTURE_2D, Some(&self.texture));
+        context.uniform1i(Some(&uniforms["tex"]), 0);
+        context.uniform1f(Some(&uniforms["rotation_x"]), self.rotation_x);
+        context.uniform1f(Some(&uniforms["rotation_y"]), self.rotation_y);
+        context.draw_arrays(WebGl2RenderingContext::TRIANGLES, 0, 6);
+        context.bind_texture(WebGl2RenderingContext::TEXTURE_2D, None);
+
+        Ok(())
     }
 
     pub fn get_rotation_x(&self) -> f32 {
@@ -185,15 +207,17 @@ use std::sync::{Arc, RwLock};
 
 #[wasm_bindgen(start)]
 pub fn start() -> Result<(), JsValue> {
+    panic::set_hook(Box::new(console_error_panic_hook::hook));
+
     let mut shower = PanoramaShower::new()?;
-    shower.draw();
+    shower.draw().unwrap();
 
     let f = Arc::new(RwLock::new(None));
     let g = f.clone();
 
-    *g.write().unwrap() =  Some(Closure::wrap(Box::new(move || {
-        // shower.increase_rotation_y(1.0);
-        shower.draw();
+    *g.write().unwrap() = Some(Closure::wrap(Box::new(move || {
+        shower.increase_rotation_y(1.0);
+        shower.draw().unwrap();
         request_animation_frame(f.read().unwrap().as_ref().unwrap());
     }) as Box<dyn FnMut()>));
 
