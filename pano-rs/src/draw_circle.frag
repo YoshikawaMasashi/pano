@@ -3,7 +3,7 @@
 
 precision highp float;
 
-in vec2 v_tex_coords;
+in vec2 fragment_position;
 out vec4 color;
 
 uniform float scale;
@@ -11,8 +11,8 @@ uniform vec3 position;
 uniform vec4 circle_color;
 
 void main() {
-  float azimuth = v_tex_coords.x * PI;
-  float elevation = v_tex_coords.y * PI / 2.0;
+  float azimuth = fragment_position.x * PI;
+  float elevation = fragment_position.y * PI / 2.0;
 
   vec3 pt;
   pt.x = cos(elevation) * sin(azimuth);

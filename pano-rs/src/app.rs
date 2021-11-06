@@ -2,7 +2,7 @@ extern crate console_error_panic_hook;
 
 use std::panic;
 use std::path::Path;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, RwLock};
 
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
@@ -35,6 +35,7 @@ impl App {
             .unwrap()
             .dyn_into::<WebGl2RenderingContext>()?;
         context.clear_color(0.0, 0.0, 0.0, 1.0);
+        context.enable(WebGl2RenderingContext::BLEND);
 
         let show_panorama_vert_shader = read_shader(
             Path::new("../pano-rs/src/show_panorama.vert"),
@@ -159,6 +160,28 @@ impl App {
         );
         context.viewport(0, 0, WORK_TEXTURE_WIDTH as i32, WORK_TEXTURE_HEIGHT as i32);
 
+        let program = link_program(
+            &context,
+            &self.draw_circle_vert_shader,
+            &self.draw_circle_frag_shader,
+        )?;
+        let uniforms = get_uniform_locations(
+            &context,
+            &program,
+            vec![
+                "scale".to_string(),
+                "position".to_string(),
+                "circle_color".to_string(),
+            ],
+        )?;
+        context.use_program(Some(&program));
+        
+        context.uniform1f(Some(&uniforms["scale"]), 0.2);
+        context.uniform3f(Some(&uniforms["position"]), 0.0, 0.0, 0.0);
+        context.uniform4f(Some(&uniforms["circle_color"]), 0.5, 0.5, 0.5, 1.0);
+        context.blend_func(WebGl2RenderingContext::SRC_ALPHA, WebGl2RenderingContext::ONE_MINUS_SRC_ALPHA);
+        context.draw_arrays(WebGl2RenderingContext::TRIANGLES, 0, 6);
+
         context.bind_framebuffer(WebGl2RenderingContext::FRAMEBUFFER, None);
 
         Ok(())
@@ -203,6 +226,38 @@ impl App {
 
         Ok(())
     }
+
+    pub fn increase_rotation_x(&mut self, rotation: f32) {
+        self.rotation_x += rotation;
+    }
+
+    pub fn increase_rotation_y(&mut self, rotation: f32) {
+        self.rotation_y += rotation;
+    }
+
+    pub fn modify_rotation(&mut self) {
+        let mut rotation_x = self.rotation_x;
+        let mut rotation_y = self.rotation_y;
+
+        rotation_x = (rotation_x + 180.0) % 360.0 - 180.0;
+        if rotation_x > 90.0 {
+            rotation_x = 180.0 - rotation_x;
+            rotation_y = rotation_y + 180.0;
+        }
+        if rotation_x < -90.0 {
+            rotation_x = -180.0 - rotation_x;
+            rotation_y = rotation_y + 180.0;
+        }
+
+        self.rotation_x = rotation_x;
+        self.rotation_y = rotation_y;
+    }
+}
+
+fn request_animation_frame(f: &Closure<dyn FnMut()>) {
+    web_sys::window().unwrap()
+        .request_animation_frame(f.as_ref().unchecked_ref())
+        .expect("should register `requestAnimationFrame` OK");
 }
 
 #[wasm_bindgen]
@@ -213,6 +268,72 @@ pub fn start() -> Result<(), JsValue> {
     app.read_image_to_work_texture(Path::new("../pano-rs/panorama_image_transfer.png"))?;
     app.draw_circle()?;
     app.show()?;
+
+    let app = Arc::new(RwLock::new(app));
+    
+    let f = Arc::new(RwLock::new(None));
+    let g = f.clone();
+    let mouse_on = Arc::new(RwLock::new(false));
+
+    {
+        let app = app.clone();
+        *g.write().unwrap() = Some(Closure::wrap(Box::new(move || {
+            app.read().unwrap().show().unwrap();
+            request_animation_frame(f.read().unwrap().as_ref().unwrap());
+        }) as Box<dyn FnMut()>));
+    }
+
+    let document = web_sys::window().unwrap().document().unwrap();
+    let canvas = document.get_element_by_id("canvas").unwrap();
+    let canvas: web_sys::HtmlCanvasElement = canvas.dyn_into::<web_sys::HtmlCanvasElement>()?;
+    {
+        let mouse_on = mouse_on.clone();
+        let closure = Closure::wrap(Box::new(move |_event: web_sys::MouseEvent| {
+            *mouse_on.write().unwrap() = true;
+        }) as Box<dyn FnMut(_)>);
+        canvas.add_event_listener_with_callback("mousedown", closure.as_ref().unchecked_ref())?;
+        closure.forget();
+    }
+    {
+        let app = app.clone();
+        let mouse_on = mouse_on.clone();
+        let closure = Closure::wrap(Box::new(move |event: web_sys::MouseEvent| {
+            if *mouse_on.read().unwrap() {
+                app
+                    .write()
+                    .unwrap()
+                    .increase_rotation_y(0.3 * event.movement_x() as f32);
+                app
+                    .write()
+                    .unwrap()
+                    .increase_rotation_x(-0.3 * event.movement_y() as f32);
+            }
+        }) as Box<dyn FnMut(_)>);
+        canvas.add_event_listener_with_callback("mousemove", closure.as_ref().unchecked_ref())?;
+        closure.forget();
+    }
+    {
+        let app = app.clone();
+        let mouse_on = mouse_on.clone();
+        let closure = Closure::wrap(Box::new(move |_event: web_sys::MouseEvent| {
+            *mouse_on.write().unwrap() = false;
+            app.write().unwrap().modify_rotation();
+        }) as Box<dyn FnMut(_)>);
+        canvas.add_event_listener_with_callback("mouseup", closure.as_ref().unchecked_ref())?;
+        closure.forget();
+    }
+    {
+        let app = app.clone();
+        let mouse_on = mouse_on.clone();
+        let closure = Closure::wrap(Box::new(move |_event: web_sys::MouseEvent| {
+            *mouse_on.write().unwrap() = false;
+            app.write().unwrap().modify_rotation();
+        }) as Box<dyn FnMut(_)>);
+        canvas.add_event_listener_with_callback("mouseout", closure.as_ref().unchecked_ref())?;
+        closure.forget();
+    }
+
+    request_animation_frame(g.read().unwrap().as_ref().unwrap());
 
     Ok(())
 }
