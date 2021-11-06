@@ -1,3 +1,5 @@
+// 本当に毎回contextを作り替えないといかないか、というのはちゃんと検証しないといけないため、このソースは残してある。
+
 extern crate console_error_panic_hook;
 
 use std::panic;
