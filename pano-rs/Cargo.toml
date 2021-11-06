@@ -33,6 +33,7 @@ features = [
   'WebGlUniformLocation',
   'WebGlTexture',
   'MouseEvent',
+  'TouchEvent',
   'Gpu',
   'Headers',
   'Navigator',

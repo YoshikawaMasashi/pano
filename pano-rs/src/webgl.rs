@@ -223,7 +223,7 @@ fn request_animation_frame(f: &Closure<dyn FnMut()>) {
 
 use std::sync::{Arc, RwLock};
 
-#[wasm_bindgen(start)]
+#[wasm_bindgen]
 pub fn start() -> Result<(), JsValue> {
     panic::set_hook(Box::new(console_error_panic_hook::hook));
 

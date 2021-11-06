@@ -1,4 +1,6 @@
 pub mod webgl;
+#[cfg(web_sys_unstable_apis)]
+pub mod webxr;
 
 use wasm_bindgen::prelude::*;
 
