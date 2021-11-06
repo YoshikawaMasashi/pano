@@ -8,7 +8,7 @@ use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
 use web_sys::{WebGl2RenderingContext, WebGlShader, WebGlTexture};
 
-use crate::file_io::read_image;
+use crate::file_io::{read_image, write_image};
 use crate::webgl_utils::{get_uniform_locations, link_program, read_shader};
 
 const WORK_TEXTURE_WIDTH: usize = 3840;
@@ -146,7 +146,7 @@ impl App {
             .get_context("webgl2")?
             .unwrap()
             .dyn_into::<WebGl2RenderingContext>()?;
-        
+
         let frame_buffer = context.create_framebuffer().unwrap();
         context.bind_framebuffer(WebGl2RenderingContext::FRAMEBUFFER, Some(&frame_buffer));
 
@@ -156,7 +156,7 @@ impl App {
             WebGl2RenderingContext::COLOR_ATTACHMENT0,
             WebGl2RenderingContext::TEXTURE_2D,
             Some(&work_texture),
-            0
+            0,
         );
         context.viewport(0, 0, WORK_TEXTURE_WIDTH as i32, WORK_TEXTURE_HEIGHT as i32);
 
@@ -175,11 +175,14 @@ impl App {
             ],
         )?;
         context.use_program(Some(&program));
-        
+
         context.uniform1f(Some(&uniforms["scale"]), 0.2);
         context.uniform3f(Some(&uniforms["position"]), 0.0, 0.0, 0.0);
         context.uniform4f(Some(&uniforms["circle_color"]), 0.5, 0.5, 0.5, 1.0);
-        context.blend_func(WebGl2RenderingContext::SRC_ALPHA, WebGl2RenderingContext::ONE_MINUS_SRC_ALPHA);
+        context.blend_func(
+            WebGl2RenderingContext::SRC_ALPHA,
+            WebGl2RenderingContext::ONE_MINUS_SRC_ALPHA,
+        );
         context.draw_arrays(WebGl2RenderingContext::TRIANGLES, 0, 6);
 
         context.bind_framebuffer(WebGl2RenderingContext::FRAMEBUFFER, None);
@@ -227,6 +230,48 @@ impl App {
         Ok(())
     }
 
+    pub fn save(&self, path: &Path) -> Result<(), JsValue> {
+        let document = web_sys::window().unwrap().document().unwrap();
+        let canvas = document.get_element_by_id("canvas").unwrap();
+        let canvas: web_sys::HtmlCanvasElement = canvas.dyn_into::<web_sys::HtmlCanvasElement>()?;
+
+        let context = canvas
+            .get_context("webgl2")?
+            .unwrap()
+            .dyn_into::<WebGl2RenderingContext>()?;
+
+        let frame_buffer = context.create_framebuffer().unwrap();
+        context.bind_framebuffer(WebGl2RenderingContext::FRAMEBUFFER, Some(&frame_buffer));
+
+        let work_texture = self.work_texture.lock().unwrap();
+        context.framebuffer_texture_2d(
+            WebGl2RenderingContext::FRAMEBUFFER,
+            WebGl2RenderingContext::COLOR_ATTACHMENT0,
+            WebGl2RenderingContext::TEXTURE_2D,
+            Some(&work_texture),
+            0,
+        );
+        context.viewport(0, 0, WORK_TEXTURE_WIDTH as i32, WORK_TEXTURE_HEIGHT as i32);
+    
+        let mut data: Vec<u8> = vec![0; WORK_TEXTURE_WIDTH * WORK_TEXTURE_HEIGHT * 4];
+        context.read_pixels_with_opt_u8_array(
+            0,
+            0,
+            WORK_TEXTURE_WIDTH as i32,
+            WORK_TEXTURE_HEIGHT as i32,
+            WebGl2RenderingContext::RGBA,
+            WebGl2RenderingContext::UNSIGNED_BYTE,
+            Some(data.as_mut_slice()),
+        )?;
+        context.bind_framebuffer(WebGl2RenderingContext::FRAMEBUFFER, None);
+
+        let data =
+            image::RgbaImage::from_vec(WORK_TEXTURE_WIDTH as u32, WORK_TEXTURE_HEIGHT as u32, data)
+                .unwrap();
+        write_image(path, data);
+        Ok(())
+    }
+
     pub fn increase_rotation_x(&mut self, rotation: f32) {
         self.rotation_x += rotation;
     }
@@ -255,7 +300,8 @@ impl App {
 }
 
 fn request_animation_frame(f: &Closure<dyn FnMut()>) {
-    web_sys::window().unwrap()
+    web_sys::window()
+        .unwrap()
         .request_animation_frame(f.as_ref().unchecked_ref())
         .expect("should register `requestAnimationFrame` OK");
 }
@@ -268,9 +314,10 @@ pub fn start() -> Result<(), JsValue> {
     app.read_image_to_work_texture(Path::new("../pano-rs/panorama_image_transfer.png"))?;
     app.draw_circle()?;
     app.show()?;
+    app.save(Path::new("./panorama_image_transfer.png"))?;
 
     let app = Arc::new(RwLock::new(app));
-    
+
     let f = Arc::new(RwLock::new(None));
     let g = f.clone();
     let mouse_on = Arc::new(RwLock::new(false));
@@ -299,12 +346,10 @@ pub fn start() -> Result<(), JsValue> {
         let mouse_on = mouse_on.clone();
         let closure = Closure::wrap(Box::new(move |event: web_sys::MouseEvent| {
             if *mouse_on.read().unwrap() {
-                app
-                    .write()
+                app.write()
                     .unwrap()
                     .increase_rotation_y(0.3 * event.movement_x() as f32);
-                app
-                    .write()
+                app.write()
                     .unwrap()
                     .increase_rotation_x(-0.3 * event.movement_y() as f32);
             }

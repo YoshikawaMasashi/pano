@@ -163,7 +163,8 @@ impl PanoramaShower {
 }
 
 fn request_animation_frame(f: &Closure<dyn FnMut()>) {
-    web_sys::window().unwrap()
+    web_sys::window()
+        .unwrap()
         .request_animation_frame(f.as_ref().unchecked_ref())
         .expect("should register `requestAnimationFrame` OK");
 }

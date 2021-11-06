@@ -1,6 +1,8 @@
 use js_sys::ArrayBuffer;
 use wasm_bindgen::prelude::*;
 
+use js_sys::Uint8Array;
+
 #[wasm_bindgen]
 extern "C" {
     pub fn alert(s: &str);
@@ -21,4 +23,7 @@ extern "C" {
 
     #[wasm_bindgen(method, getter)]
     pub fn length(this: &Buffer) -> u32;
+
+    #[wasm_bindgen(js_name = writeFileSync, catch)]
+    pub fn write_file(path: &str, data: &Uint8Array) -> Result<(), JsValue>;
 }
