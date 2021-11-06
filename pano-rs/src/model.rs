@@ -43,7 +43,8 @@ impl Component for Model {
     fn view(&self) -> Html {
         html! {
             <div>
-                <canvas id="canvas" height="500" width="500"></canvas>
+                <p>{"Hello World!"}</p>
+                <canvas id="canvas" height="960" width="960"></canvas>
                 <button onclick=self.link.callback(|_| Msg::AddOne)>{ "+1" }</button>
                 <p>{ self.value }</p>
             </div>
