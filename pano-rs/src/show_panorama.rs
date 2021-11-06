@@ -173,7 +173,7 @@ fn request_animation_frame(f: &Closure<dyn FnMut()>) {
 use std::sync::{Arc, RwLock};
 
 #[wasm_bindgen]
-pub fn start() -> Result<(), JsValue> {
+pub fn show_panorama() -> Result<(), JsValue> {
     panic::set_hook(Box::new(console_error_panic_hook::hook));
 
     let shower = Arc::new(RwLock::new(PanoramaShower::new()?));
