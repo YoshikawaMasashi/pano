@@ -64,6 +64,8 @@ struct PanoramaShower {
     context: WebGl2RenderingContext,
     texture: WebGlTexture,
     uniforms: HashMap<String, WebGlUniformLocation>,
+    rotation_x: f32,
+    rotation_y: f32,
 }
 
 impl PanoramaShower {
@@ -127,18 +129,45 @@ impl PanoramaShower {
                 context,
                 texture,
                 uniforms,
+                rotation_x: 0.0,
+                rotation_y: 0.0,
             }
         )
     }
 
-    pub fn draw(&self, rotation_x: f32, rotation_y: f32) {
+    pub fn draw(&self) {
         self.context.clear(WebGl2RenderingContext::COLOR_BUFFER_BIT);
         self.context.active_texture(WebGl2RenderingContext::TEXTURE0);
         self.context.bind_texture(WebGl2RenderingContext::TEXTURE_2D, Some(&self.texture));
         self.context.uniform1i(Some(&self.uniforms["tex"]), 0);
-        self.context.uniform1f(Some(&self.uniforms["rotation_x"]), rotation_x);
-        self.context.uniform1f(Some(&self.uniforms["rotation_y"]), rotation_y);
+        self.context.uniform1f(Some(&self.uniforms["rotation_x"]), self.rotation_x);
+        self.context.uniform1f(Some(&self.uniforms["rotation_y"]), self.rotation_y);
         self.context.draw_arrays(WebGl2RenderingContext::TRIANGLES, 0, 6);
+        self.context.bind_texture(WebGl2RenderingContext::TEXTURE_2D, None);
+    }
+
+    pub fn get_rotation_x(&self) -> f32 {
+        self.rotation_x
+    }
+
+    pub fn get_rotation_y(&self) -> f32 {
+        self.rotation_y
+    }
+
+    pub fn set_rotation_x(&mut self, rotation: f32) {
+        self.rotation_x = rotation;
+    }
+
+    pub fn set_rotation_y(&mut self, rotation: f32) {
+        self.rotation_y = rotation;
+    }
+
+    pub fn increase_rotation_x(&mut self, rotation: f32) {
+        self.rotation_x += rotation;
+    }
+
+    pub fn increase_rotation_y(&mut self, rotation: f32) {
+        self.rotation_y += rotation;
     }
 }
 
@@ -152,25 +181,23 @@ fn request_animation_frame(f: &Closure<dyn FnMut()>) {
         .expect("should register `requestAnimationFrame` OK");
 }
 
-use std::cell::RefCell;
-use std::rc::Rc;
+use std::sync::{Arc, RwLock};
 
 #[wasm_bindgen(start)]
 pub fn start() -> Result<(), JsValue> {
-    let shower = PanoramaShower::new()?;
-    shower.draw(0.0, 0.0);
+    let mut shower = PanoramaShower::new()?;
+    shower.draw();
 
-    let mut i = 0;
-    let f = Rc::new(RefCell::new(None));
+    let f = Arc::new(RwLock::new(None));
     let g = f.clone();
 
-    *g.borrow_mut() =  Some(Closure::wrap(Box::new(move || {
-        shower.draw(0.0, i as f32);
-        i += 1;
-        request_animation_frame(f.borrow().as_ref().unwrap());
+    *g.write().unwrap() =  Some(Closure::wrap(Box::new(move || {
+        // shower.increase_rotation_y(1.0);
+        shower.draw();
+        request_animation_frame(f.read().unwrap().as_ref().unwrap());
     }) as Box<dyn FnMut()>));
 
-    request_animation_frame(g.borrow().as_ref().unwrap());
+    request_animation_frame(g.read().unwrap().as_ref().unwrap());
     Ok(())
 }
 
