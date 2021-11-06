@@ -10,7 +10,7 @@ use web_sys::{WebGl2RenderingContext, WebGlShader, WebGlTexture};
 
 use crate::file_io::{read_image, write_image};
 use crate::webgl_utils::{get_uniform_locations, link_program, read_shader};
-use crate::yew_test;
+use crate::model;
 
 const WORK_TEXTURE_WIDTH: usize = 3840;
 const WORK_TEXTURE_HEIGHT: usize = 1920;
@@ -311,7 +311,7 @@ fn request_animation_frame(f: &Closure<dyn FnMut()>) {
 pub fn start() -> Result<(), JsValue> {
     panic::set_hook(Box::new(console_error_panic_hook::hook));
 
-    yew::start_app::<yew_test::Model>();
+    yew::start_app::<model::Model>();
 
     let app = App::new()?;
     app.read_image_to_work_texture(Path::new("./pano-rs/panorama_image_transfer.png"))?;
