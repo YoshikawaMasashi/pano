@@ -2,3 +2,4 @@ pano-rs/target
 pano-rs/Cargo.lock
 node_modules/
 *.png
+pano-win32-x64/

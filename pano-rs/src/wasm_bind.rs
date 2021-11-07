@@ -13,7 +13,7 @@ extern "C" {
     pub type Buffer;
 }
 
-#[wasm_bindgen(raw_module = "../../src/fs.js")]
+#[wasm_bindgen(raw_module = "../fs.js")]
 extern "C" {
     #[wasm_bindgen(js_name = readFileSync, catch)]
     pub fn read_file(path: &str) -> Result<Buffer, JsValue>;

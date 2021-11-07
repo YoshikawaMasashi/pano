@@ -1,9 +1,13 @@
 {
+  "name": "pano",
+  "version": "0.1.0",
+  "author": "marshi(masashi yoshikawa)",
   "devDependencies": {
     "electron": "^15.3.0"
   },
   "dependencies": {
     "@types/react-redux": "^7.1.20",
+    "electron-packager": "^15.4.0",
     "esbuild": "^0.13.12",
     "react": "^17.0.2",
     "react-dom": "^17.0.2",
@@ -11,6 +15,7 @@
   },
   "scripts": {
     "start": "electron ./src",
-    "build": "cd pano-rs && wasm-pack build --target web && cargo fmt"
+    "build": "wasm-pack build ./pano-rs --target web --out-dir ../src/pkg && cd ./pano-rs && cargo fmt",
+    "exe": "npm run build && electron-packager ./src --platform=win32 --arch=x64 --overwrite"
   }
 }
