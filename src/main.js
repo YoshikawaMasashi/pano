@@ -8,7 +8,7 @@ const template = Menu.buildFromTemplate([
       submenu: [
         { role:'close', label:'閉じる' },
         {
-          label:'エキスポート',
+          label:'export',
           submenu: [
             {
               label: 'Equirectangular',
@@ -17,7 +17,18 @@ const template = Menu.buildFromTemplate([
               },
             },
           ]
-        }
+        },
+        {
+          label:'import',
+          submenu: [
+            {
+              label: 'Equirectangular',
+              click:()=>{
+                win.webContents.send("import_png", {});
+              },
+            },
+          ]
+        },
       ]
     },
     {

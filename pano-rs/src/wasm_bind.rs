@@ -47,6 +47,8 @@ extern "C" {
 extern "C" {
     #[wasm_bindgen(js_name = set_on_click_export_png)]
     pub fn set_on_click_export_png(func: &js_sys::Function);
+    #[wasm_bindgen(js_name = set_on_click_import_png)]
+    pub fn set_on_click_import_png(func: &js_sys::Function);
 }
 
 #[macro_export]

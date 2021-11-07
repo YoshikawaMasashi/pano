@@ -1,6 +1,6 @@
 import init from "./pkg/pano.js";
 import * as wasm from './pkg/pano.js';
-import { on_click_export_png } from './electron_on.js';
+import { on_click_export_png, on_click_import_png } from './electron_on.js';
 
 // https://github.com/anderejd/electron-wasm-rust-example
 async function run() {
@@ -9,6 +9,9 @@ async function run() {
 
     window.api.on("export_png", (event, arg) => {
         on_click_export_png();
+    });
+    window.api.on("import_png", (event, arg) => {
+        on_click_import_png();
     });
     /*
     var xrApp = new wasm.XrApp();

@@ -4,7 +4,6 @@ use std::panic;
 use std::path::Path;
 use std::sync::{Arc, Mutex, RwLock};
 
-use lazy_static::lazy_static;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
 use web_sys::{WebGl2RenderingContext, WebGlShader, WebGlTexture};
@@ -12,22 +11,6 @@ use yew::prelude::*;
 
 use crate::file_io::{read_image, write_image};
 use crate::webgl_utils::{get_uniform_locations, link_program, read_shader};
-
-lazy_static! {
-    static ref EXPORT_PNG_FUNCTION: Arc<RwLock<Box<dyn FnMut() + Sync + Send>>> =
-        Arc::new(RwLock::new(Box::new(move || {
-            crate::console_log!("On Click Export Png");
-        })));
-}
-
-pub fn set_on_click_export_png(func: Box<dyn FnMut() + Sync + Send>) {
-    *EXPORT_PNG_FUNCTION.write().unwrap() = func;
-}
-
-#[wasm_bindgen]
-pub fn on_click_export_png() {
-    EXPORT_PNG_FUNCTION.write().unwrap()();
-}
 
 const WORK_TEXTURE_WIDTH: usize = 3840;
 const WORK_TEXTURE_HEIGHT: usize = 1920;
@@ -40,6 +23,7 @@ pub enum Msg {
     RenderCanvas,
     KeyDown { key_code: u32 },
     ExportPng,
+    ImportPng,
 }
 
 pub struct ModelWebGL {
@@ -68,6 +52,7 @@ pub struct Model {
     render_canvas_f: Arc<RwLock<Option<Closure<dyn FnMut()>>>>,
     key_down_f: Arc<RwLock<Option<Closure<dyn FnMut(web_sys::KeyboardEvent)>>>>,
     export_png_f: Arc<RwLock<Option<Closure<dyn FnMut()>>>>,
+    import_png_f: Arc<RwLock<Option<Closure<dyn FnMut()>>>>,
 }
 
 impl Component for Model {
@@ -88,6 +73,7 @@ impl Component for Model {
             render_canvas_f: Arc::new(RwLock::new(None)),
             key_down_f: Arc::new(RwLock::new(None)),
             export_png_f: Arc::new(RwLock::new(None)),
+            import_png_f: Arc::new(RwLock::new(None)),
         }
     }
 
@@ -197,13 +183,6 @@ impl Component for Model {
                 .unwrap()
                 .read()
                 .unwrap()
-                .read_image_to_work_texture(Path::new("./pano-rs/panorama_image_transfer.png"))
-                .unwrap();
-            self.webgl
-                .as_ref()
-                .unwrap()
-                .read()
-                .unwrap()
                 .show(self.rotation_x, self.rotation_y)
                 .unwrap();
 
@@ -219,6 +198,20 @@ impl Component for Model {
             })));
             crate::wasm_bind::set_on_click_export_png(
                 self.export_png_f
+                    .read()
+                    .unwrap()
+                    .as_ref()
+                    .unwrap()
+                    .as_ref()
+                    .unchecked_ref(),
+            );
+
+            let link = self.link.clone();
+            *self.import_png_f.write().unwrap() = Some(Closure::wrap(Box::new(move || {
+                link.send_message(Msg::ImportPng)
+            })));
+            crate::wasm_bind::set_on_click_import_png(
+                self.import_png_f
                     .read()
                     .unwrap()
                     .as_ref()
@@ -303,6 +296,24 @@ impl Component for Model {
                 });
                 false
             }
+            Msg::ImportPng => {
+                let dialog_promise: js_sys::Promise =
+                    crate::wasm_bind::show_open_png_dialog().unwrap().into();
+                let webgl = self.webgl.as_ref().unwrap().clone();
+                wasm_bindgen_futures::spawn_local(async move {
+                    let path_or_undefined = wasm_bindgen_futures::JsFuture::from(dialog_promise)
+                        .await
+                        .unwrap();
+                    if let Some(path) = path_or_undefined.as_string() {
+                        webgl
+                            .read()
+                            .unwrap()
+                            .import_png_to_work_texture(Path::new(&path))
+                            .unwrap();
+                    }
+                });
+                false
+            }
         }
     }
 
@@ -372,7 +383,7 @@ impl Model {
 }
 
 impl ModelWebGL {
-    pub fn read_image_to_work_texture(&self, path: &Path) -> Result<(), JsValue> {
+    pub fn import_png_to_work_texture(&self, path: &Path) -> Result<(), JsValue> {
         let image = read_image(path);
         assert_eq!(image.width(), WORK_TEXTURE_WIDTH as u32);
         assert_eq!(image.height(), WORK_TEXTURE_HEIGHT as u32);
