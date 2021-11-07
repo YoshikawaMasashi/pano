@@ -35,6 +35,8 @@ pub struct ModelWebGL {
     draw_circle_frag_shader: WebGlShader,
     alpha_grid_vert_shader: WebGlShader,
     alpha_grid_frag_shader: WebGlShader,
+    grid_vert_shader: WebGlShader,
+    grid_frag_shader: WebGlShader,
 }
 
 pub struct Model {
@@ -163,6 +165,32 @@ impl Component for Model {
                 include_str!("./alpha_grid.frag"),
             )
             .unwrap();
+            /*
+            let grid_vert_shader = compile_shader(
+                &context,
+                WebGl2RenderingContext::VERTEX_SHADER,
+                include_str!("./grid.vert"),
+            )
+            .unwrap();
+            let grid_frag_shader = compile_shader(
+                &context,
+                WebGl2RenderingContext::FRAGMENT_SHADER,
+                include_str!("./grid.frag"),
+            )
+            .unwrap();
+            */
+            let grid_vert_shader = crate::webgl_utils::read_shader(
+                Path::new("./pano-rs/src/grid.vert"),
+                &context,
+                WebGl2RenderingContext::VERTEX_SHADER,
+            )
+            .unwrap();
+            let grid_frag_shader = crate::webgl_utils::read_shader(
+                Path::new("./pano-rs/src/grid.frag"),
+                &context,
+                WebGl2RenderingContext::FRAGMENT_SHADER,
+            )
+            .unwrap();
 
             let work_texture = context.create_texture().unwrap();
 
@@ -201,6 +229,8 @@ impl Component for Model {
                 draw_circle_frag_shader,
                 alpha_grid_vert_shader,
                 alpha_grid_frag_shader,
+                grid_vert_shader,
+                grid_frag_shader,
             })));
 
             self.webgl
@@ -510,6 +540,7 @@ impl ModelWebGL {
     pub fn show(&self, rotation_x: f32, rotation_y: f32) -> Result<(), JsValue> {
         self.show_alpha_grid(rotation_x, rotation_y)?;
         self.show_texture(rotation_x, rotation_y)?;
+        self.show_grid(rotation_x, rotation_y)?;
         Ok(())
     }
 
@@ -571,6 +602,41 @@ impl ModelWebGL {
             &self.context,
             &self.alpha_grid_vert_shader,
             &self.alpha_grid_frag_shader,
+        )?;
+        let uniforms = get_uniform_locations(
+            &self.context,
+            &program,
+            vec!["rotation_x".to_string(), "rotation_y".to_string()],
+        )?;
+        self.context.use_program(Some(&program));
+
+        self.context.enable(WebGl2RenderingContext::BLEND);
+        self.context.blend_func(
+            WebGl2RenderingContext::SRC_ALPHA,
+            WebGl2RenderingContext::ONE_MINUS_SRC_ALPHA,
+        );
+
+        self.context
+            .uniform1f(Some(&uniforms["rotation_x"]), rotation_x);
+        self.context
+            .uniform1f(Some(&uniforms["rotation_y"]), rotation_y);
+        self.context
+            .draw_arrays(WebGl2RenderingContext::TRIANGLES, 0, 6);
+
+        Ok(())
+    }
+
+    pub fn show_grid(&self, rotation_x: f32, rotation_y: f32) -> Result<(), JsValue> {
+        let document = web_sys::window().unwrap().document().unwrap();
+        let canvas = document.get_element_by_id("canvas").unwrap();
+        let canvas: web_sys::HtmlCanvasElement = canvas.dyn_into::<web_sys::HtmlCanvasElement>()?;
+
+        self.context
+            .viewport(0, 0, canvas.width() as i32, canvas.height() as i32);
+        let program = link_program(
+            &self.context,
+            &self.grid_vert_shader,
+            &self.grid_frag_shader,
         )?;
         let uniforms = get_uniform_locations(
             &self.context,
