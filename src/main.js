@@ -6,18 +6,6 @@ const template = Menu.buildFromTemplate([
     {
       label: "ファイル",
       submenu: [
-        { role:'close', label:'閉じる' },
-        {
-          label:'export',
-          submenu: [
-            {
-              label: 'Equirectangular',
-              click:()=>{
-                win.webContents.send("export_png", {});
-              },
-            },
-          ]
-        },
         {
           label:'import',
           submenu: [
@@ -29,6 +17,19 @@ const template = Menu.buildFromTemplate([
             },
           ]
         },
+        {
+          label:'export',
+          submenu: [
+            {
+              label: 'Equirectangular',
+              click:()=>{
+                win.webContents.send("export_png", {});
+              },
+            },
+          ]
+        },
+        { type:'separator' },
+        { role:'close', label:'閉じる' },
       ]
     },
     {

@@ -135,49 +135,49 @@ impl Component for Model {
             let show_panorama_vert_shader = compile_shader(
                 &context,
                 WebGl2RenderingContext::VERTEX_SHADER,
-                include_str!("./show_panorama.vert"),
+                include_str!("../shaders/show_panorama.vert"),
             )
             .unwrap();
             let show_panorama_frag_shader = compile_shader(
                 &context,
                 WebGl2RenderingContext::FRAGMENT_SHADER,
-                include_str!("./show_panorama.frag"),
+                include_str!("../shaders/show_panorama.frag"),
             )
             .unwrap();
             let draw_circle_vert_shader = compile_shader(
                 &context,
                 WebGl2RenderingContext::VERTEX_SHADER,
-                include_str!("./draw_circle.vert"),
+                include_str!("../shaders/draw_circle.vert"),
             )
             .unwrap();
             let draw_circle_frag_shader = compile_shader(
                 &context,
                 WebGl2RenderingContext::FRAGMENT_SHADER,
-                include_str!("./draw_circle.frag"),
+                include_str!("../shaders/draw_circle.frag"),
             )
             .unwrap();
             let alpha_grid_vert_shader = compile_shader(
                 &context,
                 WebGl2RenderingContext::VERTEX_SHADER,
-                include_str!("./alpha_grid.vert"),
+                include_str!("../shaders/alpha_grid.vert"),
             )
             .unwrap();
             let alpha_grid_frag_shader = compile_shader(
                 &context,
                 WebGl2RenderingContext::FRAGMENT_SHADER,
-                include_str!("./alpha_grid.frag"),
+                include_str!("../shaders/alpha_grid.frag"),
             )
             .unwrap();
             let grid_vert_shader = compile_shader(
                 &context,
                 WebGl2RenderingContext::VERTEX_SHADER,
-                include_str!("./grid.vert"),
+                include_str!("../shaders/grid.vert"),
             )
             .unwrap();
             let grid_frag_shader = compile_shader(
                 &context,
                 WebGl2RenderingContext::FRAGMENT_SHADER,
-                include_str!("./grid.frag"),
+                include_str!("../shaders/grid.frag"),
             )
             .unwrap();
             /*
@@ -417,6 +417,11 @@ impl Component for Model {
                         open=self.cubes_to_equirectangular_dialog_open
                     >
                         {"6 cubes to equirectangular"}
+                        <br />
+                        {"6cubes images: front.png, back.png, left.png, right.png, top.png, botton.pngが入ったディレクトリを指定してください"}
+                        <br />
+                        <input/>
+                        <button>{ "ファイルを選択" }</button>
                     </dialog>
                 </div>
             </div>
