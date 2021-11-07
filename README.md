@@ -11,3 +11,13 @@ start
 ```
 $ npm run start
 ```
+
+build exe
+```
+$ npm run exe
+```
+
+build to windows installer
+```
+$ npx yarn dist
+```

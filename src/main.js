@@ -59,7 +59,7 @@ function createWindow() {
     win.webContents.send("timer_tick", { message: "Hello World !" });
   }, 1000);
 
-  win.loadFile('index.html');
+  win.loadFile(path.join(__dirname, 'index.html'))
   win.webContents.openDevTools();
 }
 
