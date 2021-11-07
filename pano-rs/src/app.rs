@@ -24,6 +24,7 @@ pub enum Msg {
     KeyDown { key_code: u32 },
     ExportPng,
     ImportPng,
+    SwitchEnableGrid,
 }
 
 pub struct ModelWebGL {
@@ -52,6 +53,7 @@ pub struct Model {
     mouse_on: bool,
 
     cubes_to_equirectangular_dialog_open: bool,
+    enable_grid: bool,
 
     render_canvas_f: Arc<RwLock<Option<Closure<dyn FnMut()>>>>,
     key_down_f: Arc<RwLock<Option<Closure<dyn FnMut(web_sys::KeyboardEvent)>>>>,
@@ -73,6 +75,7 @@ impl Component for Model {
             mouse_on: false,
 
             cubes_to_equirectangular_dialog_open: false,
+            enable_grid: false,
 
             render_canvas_f: Arc::new(RwLock::new(None)),
             key_down_f: Arc::new(RwLock::new(None)),
@@ -165,7 +168,6 @@ impl Component for Model {
                 include_str!("./alpha_grid.frag"),
             )
             .unwrap();
-            /*
             let grid_vert_shader = compile_shader(
                 &context,
                 WebGl2RenderingContext::VERTEX_SHADER,
@@ -178,7 +180,7 @@ impl Component for Model {
                 include_str!("./grid.frag"),
             )
             .unwrap();
-            */
+            /*
             let grid_vert_shader = crate::webgl_utils::read_shader(
                 Path::new("./pano-rs/src/grid.vert"),
                 &context,
@@ -191,6 +193,7 @@ impl Component for Model {
                 WebGl2RenderingContext::FRAGMENT_SHADER,
             )
             .unwrap();
+            */
 
             let work_texture = context.create_texture().unwrap();
 
@@ -238,7 +241,7 @@ impl Component for Model {
                 .unwrap()
                 .read()
                 .unwrap()
-                .show(self.rotation_x, self.rotation_y)
+                .show(self.rotation_x, self.rotation_y, self.enable_grid)
                 .unwrap();
 
             let link = self.link.clone();
@@ -321,7 +324,7 @@ impl Component for Model {
                     .unwrap()
                     .read()
                     .unwrap()
-                    .show(self.rotation_x, self.rotation_y)
+                    .show(self.rotation_x, self.rotation_y, self.enable_grid)
                     .unwrap();
                 request_animation_frame(self.render_canvas_f.read().unwrap().as_ref().unwrap());
                 false
@@ -369,6 +372,10 @@ impl Component for Model {
                 });
                 false
             }
+            Msg::SwitchEnableGrid => {
+                self.enable_grid = !self.enable_grid;
+                true
+            }
         }
     }
 
@@ -384,6 +391,7 @@ impl Component for Model {
             <div>
                 <button onclick=self.link.callback(|_| Msg::AddOne)>{ "円を追加" }</button>
                 <p>{"円の数"}{ self.value }</p>
+                <button onclick=self.link.callback(|_| Msg::SwitchEnableGrid)>{ "グリッド" }</button>
                 <canvas
                     id="canvas"
                     height="960"
@@ -537,10 +545,12 @@ impl ModelWebGL {
         Ok(())
     }
 
-    pub fn show(&self, rotation_x: f32, rotation_y: f32) -> Result<(), JsValue> {
+    pub fn show(&self, rotation_x: f32, rotation_y: f32, enable_grid: bool) -> Result<(), JsValue> {
         self.show_alpha_grid(rotation_x, rotation_y)?;
         self.show_texture(rotation_x, rotation_y)?;
-        self.show_grid(rotation_x, rotation_y)?;
+        if enable_grid {
+            self.show_grid(rotation_x, rotation_y)?;
+        }
         Ok(())
     }
 
