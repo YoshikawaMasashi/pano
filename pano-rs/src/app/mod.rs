@@ -1,5 +1,7 @@
 extern crate console_error_panic_hook;
 
+mod cubes_to_equirectangular_dialog;
+
 use std::panic;
 use std::path::Path;
 use std::sync::{Arc, Mutex, RwLock};
@@ -11,6 +13,7 @@ use yew::prelude::*;
 
 use crate::file_io::{read_image, write_image};
 use crate::webgl_utils::{compile_shader, get_uniform_locations, link_program};
+use cubes_to_equirectangular_dialog::CubesToEquirectangularDialog;
 
 const WORK_TEXTURE_WIDTH: usize = 3840;
 const WORK_TEXTURE_HEIGHT: usize = 1920;
@@ -44,8 +47,6 @@ pub struct Model {
     // `ComponentLink` is like a reference to a component.
     // It can be used to send messages to the component
     link: ComponentLink<Self>,
-    value: i64,
-
     webgl: Option<Arc<RwLock<ModelWebGL>>>,
 
     rotation_x: f32,
@@ -68,7 +69,6 @@ impl Component for Model {
     fn create(_props: Self::Properties, link: ComponentLink<Self>) -> Self {
         Self {
             link,
-            value: 0,
             webgl: None,
             rotation_x: 0.0,
             rotation_y: 0.0,
@@ -283,7 +283,6 @@ impl Component for Model {
     fn update(&mut self, msg: Self::Message) -> ShouldRender {
         match msg {
             Msg::AddOne => {
-                self.value += 1;
                 self.webgl
                     .as_ref()
                     .unwrap()
@@ -390,7 +389,6 @@ impl Component for Model {
         html! {
             <div>
                 <button onclick=self.link.callback(|_| Msg::AddOne)>{ "円を追加" }</button>
-                <p>{"円の数"}{ self.value }</p>
                 <button onclick=self.link.callback(|_| Msg::SwitchEnableGrid)>{ "グリッド" }</button>
                 <canvas
                     id="canvas"
@@ -411,19 +409,9 @@ impl Component for Model {
                         }
                     }
                 }
-                <div id="centerpoint">
-                    <dialog
-                        id="6cubes to equirectangular dialog"
-                        open=self.cubes_to_equirectangular_dialog_open
-                    >
-                        {"6 cubes to equirectangular"}
-                        <br />
-                        {"6cubes images: front.png, back.png, left.png, right.png, top.png, botton.pngが入ったディレクトリを指定してください"}
-                        <br />
-                        <input/>
-                        <button>{ "ファイルを選択" }</button>
-                    </dialog>
-                </div>
+                <CubesToEquirectangularDialog
+                    open=self.cubes_to_equirectangular_dialog_open
+                />
             </div>
         }
     }
