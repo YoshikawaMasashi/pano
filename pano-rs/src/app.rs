@@ -10,7 +10,7 @@ use web_sys::{WebGl2RenderingContext, WebGlShader, WebGlTexture};
 use yew::prelude::*;
 
 use crate::file_io::{read_image, write_image};
-use crate::webgl_utils::{get_uniform_locations, link_program, read_shader};
+use crate::webgl_utils::{compile_shader, get_uniform_locations, link_program};
 
 const WORK_TEXTURE_WIDTH: usize = 3840;
 const WORK_TEXTURE_HEIGHT: usize = 1920;
@@ -118,40 +118,49 @@ impl Component for Model {
             context.clear_color(0.0, 0.0, 0.0, 1.0);
             context.enable(WebGl2RenderingContext::BLEND);
 
-            let show_panorama_vert_shader = read_shader(
+            // when development, we can use read_shader with path
+            /*
+            let show_panorama_vert_shader = crate::webgl_utils::read_shader(
                 Path::new("./pano-rs/src/show_panorama.vert"),
                 &context,
                 WebGl2RenderingContext::VERTEX_SHADER,
             )
             .unwrap();
-            let show_panorama_frag_shader = read_shader(
-                Path::new("./pano-rs/src/show_panorama.frag"),
-                &context,
-                WebGl2RenderingContext::FRAGMENT_SHADER,
-            )
-            .unwrap();
-            let draw_circle_vert_shader = read_shader(
-                Path::new("./pano-rs/src/draw_circle.vert"),
+            */
+            let show_panorama_vert_shader = compile_shader(
                 &context,
                 WebGl2RenderingContext::VERTEX_SHADER,
+                include_str!("./show_panorama.vert"),
             )
             .unwrap();
-            let draw_circle_frag_shader = read_shader(
-                Path::new("./pano-rs/src/draw_circle.frag"),
+            let show_panorama_frag_shader = compile_shader(
                 &context,
                 WebGl2RenderingContext::FRAGMENT_SHADER,
+                include_str!("./show_panorama.frag"),
             )
             .unwrap();
-            let alpha_grid_vert_shader = read_shader(
-                Path::new("./pano-rs/src/alpha_grid.vert"),
+            let draw_circle_vert_shader = compile_shader(
                 &context,
                 WebGl2RenderingContext::VERTEX_SHADER,
+                include_str!("./draw_circle.vert"),
             )
             .unwrap();
-            let alpha_grid_frag_shader = read_shader(
-                Path::new("./pano-rs/src/alpha_grid.frag"),
+            let draw_circle_frag_shader = compile_shader(
                 &context,
                 WebGl2RenderingContext::FRAGMENT_SHADER,
+                include_str!("./draw_circle.frag"),
+            )
+            .unwrap();
+            let alpha_grid_vert_shader = compile_shader(
+                &context,
+                WebGl2RenderingContext::VERTEX_SHADER,
+                include_str!("./alpha_grid.vert"),
+            )
+            .unwrap();
+            let alpha_grid_frag_shader = compile_shader(
+                &context,
+                WebGl2RenderingContext::FRAGMENT_SHADER,
+                include_str!("./alpha_grid.frag"),
             )
             .unwrap();
 
