@@ -21,6 +21,7 @@ pub enum Msg {
     MouseMoveCanvas { movement_x: f32, movement_y: f32 },
     MouseUpCanvas,
     RenderCanvas,
+    KeyDown { key_code: u32 },
 }
 
 pub struct ModelWebGL {
@@ -44,7 +45,10 @@ pub struct Model {
     rotation_y: f32,
     mouse_on: bool,
 
+    cubes_to_equirectangular_dialog_open: bool,
+
     render_canvas_f: Arc<RwLock<Option<Closure<dyn FnMut()>>>>,
+    key_down_f: Arc<RwLock<Option<Closure<dyn FnMut(web_sys::KeyboardEvent)>>>>,
 }
 
 impl Component for Model {
@@ -60,12 +64,37 @@ impl Component for Model {
             rotation_y: 0.0,
             mouse_on: false,
             render_canvas_f: Arc::new(RwLock::new(None)),
+            key_down_f: Arc::new(RwLock::new(None)),
+            cubes_to_equirectangular_dialog_open: false,
         }
     }
 
     fn rendered(&mut self, first_render: bool) {
         if first_render {
             let document = web_sys::window().unwrap().document().unwrap();
+
+            let body = document.body().unwrap();
+            let link = self.link.clone();
+            *self.key_down_f.write().unwrap() = Some(Closure::wrap(Box::new(
+                move |event: web_sys::KeyboardEvent| {
+                    link.send_message(Msg::KeyDown {
+                        key_code: event.key_code(),
+                    });
+                },
+            )
+                as Box<dyn FnMut(_)>));
+            body.add_event_listener_with_callback(
+                "keydown",
+                self.key_down_f
+                    .read()
+                    .unwrap()
+                    .as_ref()
+                    .unwrap()
+                    .as_ref()
+                    .unchecked_ref(),
+            )
+            .unwrap();
+
             let canvas = document.get_element_by_id("canvas").unwrap();
             let canvas: web_sys::HtmlCanvasElement =
                 canvas.dyn_into::<web_sys::HtmlCanvasElement>().unwrap();
@@ -193,6 +222,17 @@ impl Component for Model {
                 request_animation_frame(self.render_canvas_f.read().unwrap().as_ref().unwrap());
                 false
             }
+            Msg::KeyDown { key_code } => {
+                // crate::console_log!("key down {}", key_code);
+                if key_code == 54 {
+                    // '6' key
+                    self.cubes_to_equirectangular_dialog_open =
+                        !self.cubes_to_equirectangular_dialog_open;
+                    true
+                } else {
+                    false
+                }
+            }
         }
     }
 
@@ -218,6 +258,9 @@ impl Component for Model {
                 ></canvas>
                 <button onclick=self.link.callback(|_| Msg::AddOne)>{ "+1" }</button>
                 <p>{ self.value }</p>
+                <dialog open=self.cubes_to_equirectangular_dialog_open>
+                    {"6 cubes to equirectangular"}
+                </dialog>
             </div>
         }
     }
