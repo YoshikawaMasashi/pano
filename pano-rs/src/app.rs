@@ -22,6 +22,7 @@ pub enum Msg {
     MouseUpCanvas,
     RenderCanvas,
     KeyDown { key_code: u32 },
+    SavePng,
 }
 
 pub struct ModelWebGL {
@@ -39,7 +40,7 @@ pub struct Model {
     link: ComponentLink<Self>,
     value: i64,
 
-    webgl: Option<ModelWebGL>,
+    webgl: Option<Arc<RwLock<ModelWebGL>>>,
 
     rotation_x: f32,
     rotation_y: f32,
@@ -161,19 +162,35 @@ impl Component for Model {
             );
             context.bind_texture(WebGl2RenderingContext::TEXTURE_2D, None);
 
-            self.webgl = Some(ModelWebGL {
+            self.webgl = Some(Arc::new(RwLock::new(ModelWebGL {
                 context,
                 work_texture: Arc::new(Mutex::new(work_texture)),
                 show_panorama_vert_shader,
                 show_panorama_frag_shader,
                 draw_circle_vert_shader,
                 draw_circle_frag_shader,
-            });
+            })));
 
-            self.read_image_to_work_texture(Path::new("./pano-rs/panorama_image_transfer.png"))
+            self.webgl
+                .as_ref()
+                .unwrap()
+                .read()
+                .unwrap()
+                .read_image_to_work_texture(Path::new("./pano-rs/panorama_image_transfer.png"))
                 .unwrap();
-            self.show().unwrap();
-            self.save(Path::new("./panorama_image_transfer.png"))
+            self.webgl
+                .as_ref()
+                .unwrap()
+                .read()
+                .unwrap()
+                .show(self.rotation_x, self.rotation_y)
+                .unwrap();
+            self.webgl
+                .as_ref()
+                .unwrap()
+                .read()
+                .unwrap()
+                .save(Path::new("./panorama_image_transfer.png"))
                 .unwrap();
 
             let link = self.link.clone();
@@ -188,12 +205,17 @@ impl Component for Model {
         match msg {
             Msg::AddOne => {
                 self.value += 1;
-                self.draw_circle(
-                    0.05,
-                    (-self.rotation_x, self.rotation_y, 0.0),
-                    (0.7, 0.7, 0.7, 1.0),
-                )
-                .unwrap();
+                self.webgl
+                    .as_ref()
+                    .unwrap()
+                    .read()
+                    .unwrap()
+                    .draw_circle(
+                        0.05,
+                        (-self.rotation_x, self.rotation_y, 0.0),
+                        (0.7, 0.7, 0.7, 1.0),
+                    )
+                    .unwrap();
                 // the value has changed so we need to
                 // re-render for it to appear on the page
                 true
@@ -218,7 +240,13 @@ impl Component for Model {
                 false
             }
             Msg::RenderCanvas => {
-                self.show().unwrap();
+                self.webgl
+                    .as_ref()
+                    .unwrap()
+                    .read()
+                    .unwrap()
+                    .show(self.rotation_x, self.rotation_y)
+                    .unwrap();
                 request_animation_frame(self.render_canvas_f.read().unwrap().as_ref().unwrap());
                 false
             }
@@ -232,6 +260,20 @@ impl Component for Model {
                 } else {
                     false
                 }
+            }
+            Msg::SavePng => {
+                let dialog_promise: js_sys::Promise =
+                    crate::wasm_bind::show_save_png_dialog().unwrap().into();
+                let webgl = self.webgl.as_ref().unwrap().clone();
+                wasm_bindgen_futures::spawn_local(async move {
+                    let path_or_undefined = wasm_bindgen_futures::JsFuture::from(dialog_promise)
+                        .await
+                        .unwrap();
+                    if let Some(path) = path_or_undefined.as_string() {
+                        webgl.read().unwrap().save(Path::new(&path)).unwrap();
+                    }
+                });
+                false
             }
         }
     }
@@ -258,6 +300,7 @@ impl Component for Model {
                 ></canvas>
                 <button onclick=self.link.callback(|_| Msg::AddOne)>{ "+1" }</button>
                 <p>{ self.value }</p>
+                <button onclick=self.link.callback(|_| Msg::SavePng)>{ "保存" }</button>
                 {
                     if self.cubes_to_equirectangular_dialog_open {
                         html! {
@@ -282,209 +325,6 @@ impl Component for Model {
 }
 
 impl Model {
-    pub fn read_image_to_work_texture(&self, path: &Path) -> Result<(), JsValue> {
-        let webgl = self.webgl.as_ref().unwrap();
-        let image = read_image(path);
-        assert_eq!(image.width(), WORK_TEXTURE_WIDTH as u32);
-        assert_eq!(image.height(), WORK_TEXTURE_HEIGHT as u32);
-
-        let work_texture = webgl.work_texture.lock().unwrap();
-        webgl
-            .context
-            .bind_texture(WebGl2RenderingContext::TEXTURE_2D, Some(&work_texture));
-        webgl
-            .context
-            .tex_image_2d_with_i32_and_i32_and_i32_and_format_and_type_and_opt_u8_array(
-                WebGl2RenderingContext::TEXTURE_2D,
-                0,
-                WebGl2RenderingContext::RGBA as i32,
-                WORK_TEXTURE_WIDTH as i32,
-                WORK_TEXTURE_HEIGHT as i32,
-                0,
-                WebGl2RenderingContext::RGBA,
-                WebGl2RenderingContext::UNSIGNED_BYTE,
-                Some(image.as_raw().as_slice()),
-            )?;
-        webgl.context.tex_parameteri(
-            WebGl2RenderingContext::TEXTURE_2D,
-            WebGl2RenderingContext::TEXTURE_MAG_FILTER,
-            WebGl2RenderingContext::LINEAR as i32,
-        );
-        webgl.context.tex_parameteri(
-            WebGl2RenderingContext::TEXTURE_2D,
-            WebGl2RenderingContext::TEXTURE_MIN_FILTER,
-            WebGl2RenderingContext::LINEAR as i32,
-        );
-        webgl
-            .context
-            .bind_texture(WebGl2RenderingContext::TEXTURE_2D, None);
-
-        Ok(())
-    }
-
-    pub fn draw_circle(
-        &self,
-        scale: f32,
-        position: (f32, f32, f32),
-        circle_color: (f32, f32, f32, f32),
-    ) -> Result<(), JsValue> {
-        let webgl = self.webgl.as_ref().unwrap();
-        let frame_buffer = webgl.context.create_framebuffer().unwrap();
-        webgl
-            .context
-            .bind_framebuffer(WebGl2RenderingContext::FRAMEBUFFER, Some(&frame_buffer));
-
-        let work_texture = webgl.work_texture.lock().unwrap();
-        webgl.context.framebuffer_texture_2d(
-            WebGl2RenderingContext::FRAMEBUFFER,
-            WebGl2RenderingContext::COLOR_ATTACHMENT0,
-            WebGl2RenderingContext::TEXTURE_2D,
-            Some(&work_texture),
-            0,
-        );
-        webgl
-            .context
-            .viewport(0, 0, WORK_TEXTURE_WIDTH as i32, WORK_TEXTURE_HEIGHT as i32);
-
-        let program = link_program(
-            &webgl.context,
-            &webgl.draw_circle_vert_shader,
-            &webgl.draw_circle_frag_shader,
-        )?;
-        let uniforms = get_uniform_locations(
-            &webgl.context,
-            &program,
-            vec![
-                "scale".to_string(),
-                "position".to_string(),
-                "circle_color".to_string(),
-            ],
-        )?;
-        webgl.context.use_program(Some(&program));
-
-        webgl.context.uniform1f(Some(&uniforms["scale"]), scale);
-        webgl.context.uniform3f(
-            Some(&uniforms["position"]),
-            position.0,
-            position.1,
-            position.2,
-        );
-        webgl.context.uniform4f(
-            Some(&uniforms["circle_color"]),
-            circle_color.0,
-            circle_color.1,
-            circle_color.2,
-            circle_color.3,
-        );
-        webgl.context.blend_func(
-            WebGl2RenderingContext::SRC_ALPHA,
-            WebGl2RenderingContext::ONE_MINUS_SRC_ALPHA,
-        );
-        webgl
-            .context
-            .draw_arrays(WebGl2RenderingContext::TRIANGLES, 0, 6);
-
-        webgl
-            .context
-            .bind_framebuffer(WebGl2RenderingContext::FRAMEBUFFER, None);
-
-        Ok(())
-    }
-
-    pub fn show(&self) -> Result<(), JsValue> {
-        let webgl = self.webgl.as_ref().unwrap();
-
-        let document = web_sys::window().unwrap().document().unwrap();
-        let canvas = document.get_element_by_id("canvas").unwrap();
-        let canvas: web_sys::HtmlCanvasElement = canvas.dyn_into::<web_sys::HtmlCanvasElement>()?;
-
-        webgl.context.clear_color(0.0, 0.0, 0.0, 1.0);
-        webgl
-            .context
-            .viewport(0, 0, canvas.width() as i32, canvas.height() as i32);
-        let program = link_program(
-            &webgl.context,
-            &webgl.show_panorama_vert_shader,
-            &webgl.show_panorama_frag_shader,
-        )?;
-        let uniforms = get_uniform_locations(
-            &webgl.context,
-            &program,
-            vec![
-                "tex".to_string(),
-                "rotation_x".to_string(),
-                "rotation_y".to_string(),
-            ],
-        )?;
-        webgl.context.use_program(Some(&program));
-
-        let work_texture = webgl.work_texture.lock().unwrap();
-        webgl
-            .context
-            .clear(WebGl2RenderingContext::COLOR_BUFFER_BIT);
-        webgl
-            .context
-            .active_texture(WebGl2RenderingContext::TEXTURE0);
-        webgl
-            .context
-            .bind_texture(WebGl2RenderingContext::TEXTURE_2D, Some(&work_texture));
-        webgl.context.uniform1i(Some(&uniforms["tex"]), 0);
-        webgl
-            .context
-            .uniform1f(Some(&uniforms["rotation_x"]), self.rotation_x);
-        webgl
-            .context
-            .uniform1f(Some(&uniforms["rotation_y"]), self.rotation_y);
-        webgl
-            .context
-            .draw_arrays(WebGl2RenderingContext::TRIANGLES, 0, 6);
-        webgl
-            .context
-            .bind_texture(WebGl2RenderingContext::TEXTURE_2D, None);
-
-        Ok(())
-    }
-
-    pub fn save(&self, path: &Path) -> Result<(), JsValue> {
-        let webgl = self.webgl.as_ref().unwrap();
-        let frame_buffer = webgl.context.create_framebuffer().unwrap();
-        webgl
-            .context
-            .bind_framebuffer(WebGl2RenderingContext::FRAMEBUFFER, Some(&frame_buffer));
-
-        let work_texture = webgl.work_texture.lock().unwrap();
-        webgl.context.framebuffer_texture_2d(
-            WebGl2RenderingContext::FRAMEBUFFER,
-            WebGl2RenderingContext::COLOR_ATTACHMENT0,
-            WebGl2RenderingContext::TEXTURE_2D,
-            Some(&work_texture),
-            0,
-        );
-        webgl
-            .context
-            .viewport(0, 0, WORK_TEXTURE_WIDTH as i32, WORK_TEXTURE_HEIGHT as i32);
-
-        let mut data: Vec<u8> = vec![0; WORK_TEXTURE_WIDTH * WORK_TEXTURE_HEIGHT * 4];
-        webgl.context.read_pixels_with_opt_u8_array(
-            0,
-            0,
-            WORK_TEXTURE_WIDTH as i32,
-            WORK_TEXTURE_HEIGHT as i32,
-            WebGl2RenderingContext::RGBA,
-            WebGl2RenderingContext::UNSIGNED_BYTE,
-            Some(data.as_mut_slice()),
-        )?;
-        webgl
-            .context
-            .bind_framebuffer(WebGl2RenderingContext::FRAMEBUFFER, None);
-
-        let data =
-            image::RgbaImage::from_vec(WORK_TEXTURE_WIDTH as u32, WORK_TEXTURE_HEIGHT as u32, data)
-                .unwrap();
-        write_image(path, data);
-        Ok(())
-    }
-
     fn modify_rotation(&mut self) {
         let mut rotation_x = self.rotation_x;
         let mut rotation_y = self.rotation_y;
@@ -501,6 +341,187 @@ impl Model {
 
         self.rotation_x = rotation_x;
         self.rotation_y = rotation_y;
+    }
+}
+
+impl ModelWebGL {
+    pub fn read_image_to_work_texture(&self, path: &Path) -> Result<(), JsValue> {
+        let image = read_image(path);
+        assert_eq!(image.width(), WORK_TEXTURE_WIDTH as u32);
+        assert_eq!(image.height(), WORK_TEXTURE_HEIGHT as u32);
+
+        let work_texture = self.work_texture.lock().unwrap();
+        self.context
+            .bind_texture(WebGl2RenderingContext::TEXTURE_2D, Some(&work_texture));
+        self.context
+            .tex_image_2d_with_i32_and_i32_and_i32_and_format_and_type_and_opt_u8_array(
+                WebGl2RenderingContext::TEXTURE_2D,
+                0,
+                WebGl2RenderingContext::RGBA as i32,
+                WORK_TEXTURE_WIDTH as i32,
+                WORK_TEXTURE_HEIGHT as i32,
+                0,
+                WebGl2RenderingContext::RGBA,
+                WebGl2RenderingContext::UNSIGNED_BYTE,
+                Some(image.as_raw().as_slice()),
+            )?;
+        self.context.tex_parameteri(
+            WebGl2RenderingContext::TEXTURE_2D,
+            WebGl2RenderingContext::TEXTURE_MAG_FILTER,
+            WebGl2RenderingContext::LINEAR as i32,
+        );
+        self.context.tex_parameteri(
+            WebGl2RenderingContext::TEXTURE_2D,
+            WebGl2RenderingContext::TEXTURE_MIN_FILTER,
+            WebGl2RenderingContext::LINEAR as i32,
+        );
+        self.context
+            .bind_texture(WebGl2RenderingContext::TEXTURE_2D, None);
+
+        Ok(())
+    }
+
+    pub fn draw_circle(
+        &self,
+        scale: f32,
+        position: (f32, f32, f32),
+        circle_color: (f32, f32, f32, f32),
+    ) -> Result<(), JsValue> {
+        let frame_buffer = self.context.create_framebuffer().unwrap();
+        self.context
+            .bind_framebuffer(WebGl2RenderingContext::FRAMEBUFFER, Some(&frame_buffer));
+
+        let work_texture = self.work_texture.lock().unwrap();
+        self.context.framebuffer_texture_2d(
+            WebGl2RenderingContext::FRAMEBUFFER,
+            WebGl2RenderingContext::COLOR_ATTACHMENT0,
+            WebGl2RenderingContext::TEXTURE_2D,
+            Some(&work_texture),
+            0,
+        );
+        self.context
+            .viewport(0, 0, WORK_TEXTURE_WIDTH as i32, WORK_TEXTURE_HEIGHT as i32);
+
+        let program = link_program(
+            &self.context,
+            &self.draw_circle_vert_shader,
+            &self.draw_circle_frag_shader,
+        )?;
+        let uniforms = get_uniform_locations(
+            &self.context,
+            &program,
+            vec![
+                "scale".to_string(),
+                "position".to_string(),
+                "circle_color".to_string(),
+            ],
+        )?;
+        self.context.use_program(Some(&program));
+
+        self.context.uniform1f(Some(&uniforms["scale"]), scale);
+        self.context.uniform3f(
+            Some(&uniforms["position"]),
+            position.0,
+            position.1,
+            position.2,
+        );
+        self.context.uniform4f(
+            Some(&uniforms["circle_color"]),
+            circle_color.0,
+            circle_color.1,
+            circle_color.2,
+            circle_color.3,
+        );
+        self.context.blend_func(
+            WebGl2RenderingContext::SRC_ALPHA,
+            WebGl2RenderingContext::ONE_MINUS_SRC_ALPHA,
+        );
+        self.context
+            .draw_arrays(WebGl2RenderingContext::TRIANGLES, 0, 6);
+
+        self.context
+            .bind_framebuffer(WebGl2RenderingContext::FRAMEBUFFER, None);
+
+        Ok(())
+    }
+
+    pub fn show(&self, rotation_x: f32, rotation_y: f32) -> Result<(), JsValue> {
+        let document = web_sys::window().unwrap().document().unwrap();
+        let canvas = document.get_element_by_id("canvas").unwrap();
+        let canvas: web_sys::HtmlCanvasElement = canvas.dyn_into::<web_sys::HtmlCanvasElement>()?;
+
+        self.context.clear_color(0.0, 0.0, 0.0, 1.0);
+        self.context
+            .viewport(0, 0, canvas.width() as i32, canvas.height() as i32);
+        let program = link_program(
+            &self.context,
+            &self.show_panorama_vert_shader,
+            &self.show_panorama_frag_shader,
+        )?;
+        let uniforms = get_uniform_locations(
+            &self.context,
+            &program,
+            vec![
+                "tex".to_string(),
+                "rotation_x".to_string(),
+                "rotation_y".to_string(),
+            ],
+        )?;
+        self.context.use_program(Some(&program));
+
+        let work_texture = self.work_texture.lock().unwrap();
+        self.context.clear(WebGl2RenderingContext::COLOR_BUFFER_BIT);
+        self.context
+            .active_texture(WebGl2RenderingContext::TEXTURE0);
+        self.context
+            .bind_texture(WebGl2RenderingContext::TEXTURE_2D, Some(&work_texture));
+        self.context.uniform1i(Some(&uniforms["tex"]), 0);
+        self.context
+            .uniform1f(Some(&uniforms["rotation_x"]), rotation_x);
+        self.context
+            .uniform1f(Some(&uniforms["rotation_y"]), rotation_y);
+        self.context
+            .draw_arrays(WebGl2RenderingContext::TRIANGLES, 0, 6);
+        self.context
+            .bind_texture(WebGl2RenderingContext::TEXTURE_2D, None);
+
+        Ok(())
+    }
+
+    pub fn save(&self, path: &Path) -> Result<(), JsValue> {
+        let frame_buffer = self.context.create_framebuffer().unwrap();
+        self.context
+            .bind_framebuffer(WebGl2RenderingContext::FRAMEBUFFER, Some(&frame_buffer));
+
+        let work_texture = self.work_texture.lock().unwrap();
+        self.context.framebuffer_texture_2d(
+            WebGl2RenderingContext::FRAMEBUFFER,
+            WebGl2RenderingContext::COLOR_ATTACHMENT0,
+            WebGl2RenderingContext::TEXTURE_2D,
+            Some(&work_texture),
+            0,
+        );
+        self.context
+            .viewport(0, 0, WORK_TEXTURE_WIDTH as i32, WORK_TEXTURE_HEIGHT as i32);
+
+        let mut data: Vec<u8> = vec![0; WORK_TEXTURE_WIDTH * WORK_TEXTURE_HEIGHT * 4];
+        self.context.read_pixels_with_opt_u8_array(
+            0,
+            0,
+            WORK_TEXTURE_WIDTH as i32,
+            WORK_TEXTURE_HEIGHT as i32,
+            WebGl2RenderingContext::RGBA,
+            WebGl2RenderingContext::UNSIGNED_BYTE,
+            Some(data.as_mut_slice()),
+        )?;
+        self.context
+            .bind_framebuffer(WebGl2RenderingContext::FRAMEBUFFER, None);
+
+        let data =
+            image::RgbaImage::from_vec(WORK_TEXTURE_WIDTH as u32, WORK_TEXTURE_HEIGHT as u32, data)
+                .unwrap();
+        write_image(path, data);
+        Ok(())
     }
 }
 

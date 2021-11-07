@@ -31,6 +31,18 @@ extern "C" {
     pub fn write_file(path: &str, data: &Uint8Array) -> Result<(), JsValue>;
 }
 
+#[wasm_bindgen(raw_module = "../dialog.js")]
+extern "C" {
+    #[wasm_bindgen(js_name = showOpenDirectoryDialog, catch)]
+    pub fn show_open_directory_dialog() -> Result<JsValue, JsValue>;
+
+    #[wasm_bindgen(js_name = showOpenPngDialog, catch)]
+    pub fn show_open_png_dialog() -> Result<JsValue, JsValue>;
+
+    #[wasm_bindgen(js_name = showSavePngDialog, catch)]
+    pub fn show_save_png_dialog() -> Result<JsValue, JsValue>;
+}
+
 #[macro_export]
 macro_rules! console_log {
     // Note that this is using the `log` function imported above during

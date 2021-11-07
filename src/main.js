@@ -1,4 +1,4 @@
-const {app, BrowserWindow} = require('electron');
+const {app, ipcMain, BrowserWindow, dialog } = require('electron');
 const path = require('path');
 
 function createWindow() {
@@ -26,3 +26,36 @@ app.whenReady().then(() => {
 app.on('window-all-closed', function () {
   if (process.platform !== 'darwin') app.quit()
 })
+
+ipcMain.handle('showOpenDirectoryDialog', async (event) => {
+  let filename = dialog.showOpenDialogSync(null, {
+      properties: ['openDirectory', 'createDirectory'],
+      title: 'Select a directory',
+      defaultPath: '.'
+  });
+  return filename;
+});
+
+ipcMain.handle('showOpenPngDialog', async (event) => {
+  let filename = dialog.showOpenDialogSync(null, {
+      properties: ['openFile'],
+      title: 'Select a png image',
+      defaultPath: '.',
+      filters: [
+          {name: 'png file', extensions: ['png']}
+      ]
+  });
+  return filename;
+});
+
+ipcMain.handle('showSavePngDialog', async (event) => {
+  let filename = dialog.showSaveDialogSync(null, {
+      properties: ['showOverwriteConfirmation'],
+      title: 'Select a png image',
+      defaultPath: '.',
+      filters: [
+          {name: 'png file', extensions: ['png']}
+      ]
+  });
+  return filename;
+});
