@@ -4,3 +4,32 @@ div p {
     font-weight: bold;
     text-align: center;
 }
+
+#centerpoint {
+    top: 50%;
+    left: 50%;
+    position: absolute;
+}
+
+dialog {
+    position: relative;
+
+    width: 600px;
+    margin-left: -300px;
+
+    height: 400px;
+    margin-top: -200px;
+}
+
+#overlay{
+    position:fixed;
+    top:0;
+    left:0;
+    width:100%;
+    height:100%;
+    background-color:rgba(0,0,0,0.5);
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}

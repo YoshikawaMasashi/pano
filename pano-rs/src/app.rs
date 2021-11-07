@@ -258,9 +258,24 @@ impl Component for Model {
                 ></canvas>
                 <button onclick=self.link.callback(|_| Msg::AddOne)>{ "+1" }</button>
                 <p>{ self.value }</p>
-                <dialog open=self.cubes_to_equirectangular_dialog_open>
-                    {"6 cubes to equirectangular"}
-                </dialog>
+                {
+                    if self.cubes_to_equirectangular_dialog_open {
+                        html! {
+                           <div id="overlay"></div>
+                        }
+                    } else {
+                        html! {
+                        }
+                    }
+                }
+                <div id="centerpoint">
+                    <dialog
+                        id="6cubes to equirectangular dialog"
+                        open=self.cubes_to_equirectangular_dialog_open
+                    >
+                        {"6 cubes to equirectangular"}
+                    </dialog>
+                </div>
             </div>
         }
     }
