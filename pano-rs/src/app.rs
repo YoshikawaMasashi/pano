@@ -33,6 +33,8 @@ pub struct ModelWebGL {
     show_panorama_frag_shader: WebGlShader,
     draw_circle_vert_shader: WebGlShader,
     draw_circle_frag_shader: WebGlShader,
+    alpha_grid_vert_shader: WebGlShader,
+    alpha_grid_frag_shader: WebGlShader,
 }
 
 pub struct Model {
@@ -140,6 +142,18 @@ impl Component for Model {
                 WebGl2RenderingContext::FRAGMENT_SHADER,
             )
             .unwrap();
+            let alpha_grid_vert_shader = read_shader(
+                Path::new("./pano-rs/src/alpha_grid.vert"),
+                &context,
+                WebGl2RenderingContext::VERTEX_SHADER,
+            )
+            .unwrap();
+            let alpha_grid_frag_shader = read_shader(
+                Path::new("./pano-rs/src/alpha_grid.frag"),
+                &context,
+                WebGl2RenderingContext::FRAGMENT_SHADER,
+            )
+            .unwrap();
 
             let work_texture = context.create_texture().unwrap();
 
@@ -176,6 +190,8 @@ impl Component for Model {
                 show_panorama_frag_shader,
                 draw_circle_vert_shader,
                 draw_circle_frag_shader,
+                alpha_grid_vert_shader,
+                alpha_grid_frag_shader,
             })));
 
             self.webgl
@@ -234,7 +250,7 @@ impl Component for Model {
                     .draw_circle(
                         0.05,
                         (-self.rotation_x, self.rotation_y, 0.0),
-                        (0.7, 0.7, 0.7, 1.0),
+                        (1.0, 0.5, 0.5, 1.0),
                     )
                     .unwrap();
                 // the value has changed so we need to
@@ -327,7 +343,8 @@ impl Component for Model {
     fn view(&self) -> Html {
         html! {
             <div>
-                <p>{"Hello World!"}</p>
+                <button onclick=self.link.callback(|_| Msg::AddOne)>{ "円を追加" }</button>
+                <p>{"円の数"}{ self.value }</p>
                 <canvas
                     id="canvas"
                     height="960"
@@ -337,8 +354,6 @@ impl Component for Model {
                     onmouseout=self.link.callback(|_| Msg::MouseUpCanvas)
                     onmousemove=self.link.callback(|e: web_sys::MouseEvent| Msg::MouseMoveCanvas{movement_x: e.movement_x() as f32, movement_y: e.movement_y() as f32})
                 ></canvas>
-                <button onclick=self.link.callback(|_| Msg::AddOne)>{ "+1" }</button>
-                <p>{ self.value }</p>
                 {
                     if self.cubes_to_equirectangular_dialog_open {
                         html! {
@@ -484,11 +499,16 @@ impl ModelWebGL {
     }
 
     pub fn show(&self, rotation_x: f32, rotation_y: f32) -> Result<(), JsValue> {
+        self.show_alpha_grid(rotation_x, rotation_y)?;
+        self.show_texture(rotation_x, rotation_y)?;
+        Ok(())
+    }
+
+    pub fn show_texture(&self, rotation_x: f32, rotation_y: f32) -> Result<(), JsValue> {
         let document = web_sys::window().unwrap().document().unwrap();
         let canvas = document.get_element_by_id("canvas").unwrap();
         let canvas: web_sys::HtmlCanvasElement = canvas.dyn_into::<web_sys::HtmlCanvasElement>()?;
 
-        self.context.clear_color(0.0, 0.0, 0.0, 1.0);
         self.context
             .viewport(0, 0, canvas.width() as i32, canvas.height() as i32);
         let program = link_program(
@@ -508,7 +528,6 @@ impl ModelWebGL {
         self.context.use_program(Some(&program));
 
         let work_texture = self.work_texture.lock().unwrap();
-        self.context.clear(WebGl2RenderingContext::COLOR_BUFFER_BIT);
         self.context
             .active_texture(WebGl2RenderingContext::TEXTURE0);
         self.context
@@ -518,10 +537,45 @@ impl ModelWebGL {
             .uniform1f(Some(&uniforms["rotation_x"]), rotation_x);
         self.context
             .uniform1f(Some(&uniforms["rotation_y"]), rotation_y);
+
+        self.context.enable(WebGl2RenderingContext::BLEND);
+        self.context.blend_func(
+            WebGl2RenderingContext::SRC_ALPHA,
+            WebGl2RenderingContext::ONE_MINUS_SRC_ALPHA,
+        );
         self.context
             .draw_arrays(WebGl2RenderingContext::TRIANGLES, 0, 6);
         self.context
             .bind_texture(WebGl2RenderingContext::TEXTURE_2D, None);
+
+        Ok(())
+    }
+
+    pub fn show_alpha_grid(&self, rotation_x: f32, rotation_y: f32) -> Result<(), JsValue> {
+        let document = web_sys::window().unwrap().document().unwrap();
+        let canvas = document.get_element_by_id("canvas").unwrap();
+        let canvas: web_sys::HtmlCanvasElement = canvas.dyn_into::<web_sys::HtmlCanvasElement>()?;
+
+        self.context
+            .viewport(0, 0, canvas.width() as i32, canvas.height() as i32);
+        let program = link_program(
+            &self.context,
+            &self.alpha_grid_vert_shader,
+            &self.alpha_grid_frag_shader,
+        )?;
+        let uniforms = get_uniform_locations(
+            &self.context,
+            &program,
+            vec!["rotation_x".to_string(), "rotation_y".to_string()],
+        )?;
+        self.context.use_program(Some(&program));
+
+        self.context
+            .uniform1f(Some(&uniforms["rotation_x"]), rotation_x);
+        self.context
+            .uniform1f(Some(&uniforms["rotation_y"]), rotation_y);
+        self.context
+            .draw_arrays(WebGl2RenderingContext::TRIANGLES, 0, 6);
 
         Ok(())
     }
