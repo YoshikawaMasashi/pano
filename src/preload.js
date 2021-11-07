@@ -6,3 +6,9 @@ contextBridge.exposeInMainWorld(
     ipcRenderer : ipcRenderer,
   }
 );
+
+contextBridge.exposeInMainWorld(
+  'api', {
+    on: (channel, callback) => ipcRenderer.on(channel, (event, argv)=>callback(event, argv))
+  }
+)

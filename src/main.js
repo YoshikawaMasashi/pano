@@ -1,8 +1,40 @@
-const {app, ipcMain, BrowserWindow, dialog } = require('electron');
+const {app, ipcMain, Menu, BrowserWindow, dialog } = require('electron');
 const path = require('path');
 
+let win;
+const template = Menu.buildFromTemplate([
+    {
+      label: "ファイル",
+      submenu: [
+        { role:'close', label:'閉じる' },
+        {
+          label:'エキスポート',
+          submenu: [
+            {
+              label: 'Equirectangular',
+              click:()=>{
+                win.webContents.send("export_png", {});
+              },
+            },
+          ]
+        }
+      ]
+    },
+    {
+      label: "編集",
+      submenu: [
+        { role:'undo',  label:'元に戻す' },
+        { role:'redo',  label:'やり直す' },
+        { type:'separator' },
+        { role:'copy',  label:'コピー' },
+        { role:'paste', label:'貼り付け' },
+      ]
+    }
+]);
+Menu.setApplicationMenu(template);
+
 function createWindow() {
-  const win = new BrowserWindow({
+  win = new BrowserWindow({
     width: 1080,
     height: 1080,
     webPreferences: {
@@ -10,6 +42,10 @@ function createWindow() {
       contextIsolation: true,
     }
   })
+
+  global.setTimeout(() => {
+    win.webContents.send("timer_tick", { message: "Hello World !" });
+  }, 1000);
 
   win.loadFile('index.html');
   win.webContents.openDevTools();

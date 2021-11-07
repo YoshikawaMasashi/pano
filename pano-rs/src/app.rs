@@ -4,6 +4,7 @@ use std::panic;
 use std::path::Path;
 use std::sync::{Arc, Mutex, RwLock};
 
+use lazy_static::lazy_static;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
 use web_sys::{WebGl2RenderingContext, WebGlShader, WebGlTexture};
@@ -11,6 +12,22 @@ use yew::prelude::*;
 
 use crate::file_io::{read_image, write_image};
 use crate::webgl_utils::{get_uniform_locations, link_program, read_shader};
+
+lazy_static! {
+    static ref EXPORT_PNG_FUNCTION: Arc<RwLock<Box<dyn FnMut() + Sync + Send>>> =
+        Arc::new(RwLock::new(Box::new(move || {
+            crate::console_log!("On Click Export Png");
+        })));
+}
+
+pub fn set_on_click_export_png(func: Box<dyn FnMut() + Sync + Send>) {
+    *EXPORT_PNG_FUNCTION.write().unwrap() = func;
+}
+
+#[wasm_bindgen]
+pub fn on_click_export_png() {
+    EXPORT_PNG_FUNCTION.write().unwrap()();
+}
 
 const WORK_TEXTURE_WIDTH: usize = 3840;
 const WORK_TEXTURE_HEIGHT: usize = 1920;
@@ -22,7 +39,7 @@ pub enum Msg {
     MouseUpCanvas,
     RenderCanvas,
     KeyDown { key_code: u32 },
-    SavePng,
+    ExportPng,
 }
 
 pub struct ModelWebGL {
@@ -50,6 +67,7 @@ pub struct Model {
 
     render_canvas_f: Arc<RwLock<Option<Closure<dyn FnMut()>>>>,
     key_down_f: Arc<RwLock<Option<Closure<dyn FnMut(web_sys::KeyboardEvent)>>>>,
+    export_png_f: Arc<RwLock<Option<Closure<dyn FnMut()>>>>,
 }
 
 impl Component for Model {
@@ -64,9 +82,12 @@ impl Component for Model {
             rotation_x: 0.0,
             rotation_y: 0.0,
             mouse_on: false,
+
+            cubes_to_equirectangular_dialog_open: false,
+
             render_canvas_f: Arc::new(RwLock::new(None)),
             key_down_f: Arc::new(RwLock::new(None)),
-            cubes_to_equirectangular_dialog_open: false,
+            export_png_f: Arc::new(RwLock::new(None)),
         }
     }
 
@@ -185,19 +206,26 @@ impl Component for Model {
                 .unwrap()
                 .show(self.rotation_x, self.rotation_y)
                 .unwrap();
-            self.webgl
-                .as_ref()
-                .unwrap()
-                .read()
-                .unwrap()
-                .save(Path::new("./panorama_image_transfer.png"))
-                .unwrap();
 
             let link = self.link.clone();
             *self.render_canvas_f.write().unwrap() = Some(Closure::wrap(Box::new(move || {
                 link.send_message(Msg::RenderCanvas)
             })));
             request_animation_frame(self.render_canvas_f.read().unwrap().as_ref().unwrap());
+
+            let link = self.link.clone();
+            *self.export_png_f.write().unwrap() = Some(Closure::wrap(Box::new(move || {
+                link.send_message(Msg::ExportPng)
+            })));
+            crate::wasm_bind::set_on_click_export_png(
+                self.export_png_f
+                    .read()
+                    .unwrap()
+                    .as_ref()
+                    .unwrap()
+                    .as_ref()
+                    .unchecked_ref(),
+            );
         }
     }
 
@@ -261,7 +289,7 @@ impl Component for Model {
                     false
                 }
             }
-            Msg::SavePng => {
+            Msg::ExportPng => {
                 let dialog_promise: js_sys::Promise =
                     crate::wasm_bind::show_save_png_dialog().unwrap().into();
                 let webgl = self.webgl.as_ref().unwrap().clone();
@@ -270,7 +298,7 @@ impl Component for Model {
                         .await
                         .unwrap();
                     if let Some(path) = path_or_undefined.as_string() {
-                        webgl.read().unwrap().save(Path::new(&path)).unwrap();
+                        webgl.read().unwrap().save_png(Path::new(&path)).unwrap();
                     }
                 });
                 false
@@ -300,7 +328,6 @@ impl Component for Model {
                 ></canvas>
                 <button onclick=self.link.callback(|_| Msg::AddOne)>{ "+1" }</button>
                 <p>{ self.value }</p>
-                <button onclick=self.link.callback(|_| Msg::SavePng)>{ "保存" }</button>
                 {
                     if self.cubes_to_equirectangular_dialog_open {
                         html! {
@@ -488,7 +515,7 @@ impl ModelWebGL {
         Ok(())
     }
 
-    pub fn save(&self, path: &Path) -> Result<(), JsValue> {
+    pub fn save_png(&self, path: &Path) -> Result<(), JsValue> {
         let frame_buffer = self.context.create_framebuffer().unwrap();
         self.context
             .bind_framebuffer(WebGl2RenderingContext::FRAMEBUFFER, Some(&frame_buffer));
@@ -535,7 +562,6 @@ fn request_animation_frame(f: &Closure<dyn FnMut()>) {
 #[wasm_bindgen]
 pub fn start() -> Result<(), JsValue> {
     panic::set_hook(Box::new(console_error_panic_hook::hook));
-
     yew::start_app::<Model>();
 
     Ok(())

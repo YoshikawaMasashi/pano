@@ -43,6 +43,12 @@ extern "C" {
     pub fn show_save_png_dialog() -> Result<JsValue, JsValue>;
 }
 
+#[wasm_bindgen(raw_module = "../electron_on.js")]
+extern "C" {
+    #[wasm_bindgen(js_name = set_on_click_export_png)]
+    pub fn set_on_click_export_png(func: &js_sys::Function);
+}
+
 #[macro_export]
 macro_rules! console_log {
     // Note that this is using the `log` function imported above during
