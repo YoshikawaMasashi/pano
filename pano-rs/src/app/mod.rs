@@ -1,6 +1,7 @@
 extern crate console_error_panic_hook;
 
 mod cubes_to_equirectangular_dialog;
+mod image_transfer_dialog;
 
 use std::panic;
 use std::path::Path;
@@ -14,9 +15,38 @@ use yew::prelude::*;
 use crate::file_io::{read_image, write_image};
 use crate::webgl_utils::{compile_shader, get_uniform_locations, link_program};
 use cubes_to_equirectangular_dialog::CubesToEquirectangularDialog;
+use image_transfer_dialog::ImageTransferDialog;
 
 const WORK_TEXTURE_WIDTH: usize = 3840;
 const WORK_TEXTURE_HEIGHT: usize = 1920;
+
+#[derive(PartialEq, Eq)]
+pub enum Dialog {
+    None,
+    CubesToEquirectangular,
+    ImageTransfer,
+}
+
+impl Dialog {
+    fn open(&self) -> bool {
+        match self {
+            Dialog::None => false,
+            _ => true,
+        }
+    }
+    fn cubes_to_equirectangular_dialog_open(&self) -> bool {
+        match self {
+            Dialog::CubesToEquirectangular => true,
+            _ => false,
+        }
+    }
+    fn image_transfer_dialog_open(&self) -> bool {
+        match self {
+            Dialog::ImageTransfer => true,
+            _ => false,
+        }
+    }
+}
 
 pub enum Msg {
     AddOne,
@@ -53,7 +83,7 @@ pub struct Model {
     rotation_y: f32,
     mouse_on: bool,
 
-    cubes_to_equirectangular_dialog_open: bool,
+    dialog: Dialog,
     enable_grid: bool,
 
     render_canvas_f: Arc<RwLock<Option<Closure<dyn FnMut()>>>>,
@@ -74,7 +104,7 @@ impl Component for Model {
             rotation_y: 0.0,
             mouse_on: false,
 
-            cubes_to_equirectangular_dialog_open: false,
+            dialog: Dialog::None,
             enable_grid: false,
 
             render_canvas_f: Arc::new(RwLock::new(None)),
@@ -332,8 +362,19 @@ impl Component for Model {
                 // crate::console_log!("key down {}", key_code);
                 if key_code == 54 {
                     // '6' key
-                    self.cubes_to_equirectangular_dialog_open =
-                        !self.cubes_to_equirectangular_dialog_open;
+                    if self.dialog == Dialog::CubesToEquirectangular {
+                        self.dialog = Dialog::None;
+                    } else {
+                        self.dialog = Dialog::CubesToEquirectangular;
+                    }
+                    true
+                } else if key_code == 84 {
+                    // 't' key
+                    if self.dialog == Dialog::ImageTransfer {
+                        self.dialog = Dialog::None;
+                    } else {
+                        self.dialog = Dialog::ImageTransfer;
+                    }
                     true
                 } else {
                     false
@@ -400,7 +441,7 @@ impl Component for Model {
                     onmousemove=self.link.callback(|e: web_sys::MouseEvent| Msg::MouseMoveCanvas{movement_x: e.movement_x() as f32, movement_y: e.movement_y() as f32})
                 ></canvas>
                 {
-                    if self.cubes_to_equirectangular_dialog_open {
+                    if self.dialog.open() {
                         html! {
                            <div id="overlay"></div>
                         }
@@ -410,7 +451,10 @@ impl Component for Model {
                     }
                 }
                 <CubesToEquirectangularDialog
-                    open=self.cubes_to_equirectangular_dialog_open
+                    open=self.dialog.cubes_to_equirectangular_dialog_open()
+                />
+                <ImageTransferDialog
+                    open=self.dialog.image_transfer_dialog_open()
                 />
             </div>
         }
