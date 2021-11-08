@@ -25,6 +25,7 @@ features = [
   'Document',
   'Element',
   'HtmlCanvasElement',
+  'HtmlInputElement',
   'WebGlBuffer',
   'WebGlVertexArrayObject',
   'WebGl2RenderingContext',

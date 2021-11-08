@@ -1,10 +1,9 @@
-use std::panic;
 use std::path::Path;
-use std::sync::{Arc, Mutex, RwLock};
+use std::sync::{Arc, RwLock};
 
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
-use web_sys::{WebGl2RenderingContext, WebGlShader, WebGlTexture};
+use web_sys::{HtmlInputElement, WebGl2RenderingContext, WebGlShader};
 use yew::prelude::*;
 
 use crate::file_io::{read_image, write_image};
@@ -13,7 +12,10 @@ use crate::webgl_utils::{compile_shader, get_uniform_locations, link_program};
 const WORK_TEXTURE_WIDTH: usize = 3840;
 const WORK_TEXTURE_HEIGHT: usize = 1920;
 
-pub enum Msg {}
+pub enum Msg {
+    OpenDirectoryDialog,
+    Convert,
+}
 
 #[derive(Properties, Clone, PartialEq)]
 pub struct Props {
@@ -24,6 +26,7 @@ pub struct CubesToEquirectangularDialog {
     #[allow(dead_code)]
     link: ComponentLink<Self>,
     webgl: Option<Arc<RwLock<ModelWebGL>>>,
+    input_ref: NodeRef,
 
     open: bool,
 }
@@ -39,9 +42,11 @@ impl Component for CubesToEquirectangularDialog {
     type Properties = Props;
 
     fn create(props: Self::Properties, link: ComponentLink<Self>) -> Self {
+        let input_ref = NodeRef::default();
         Self {
             link,
             webgl: None,
+            input_ref,
             open: props.open,
         }
     }
@@ -80,21 +85,42 @@ impl Component for CubesToEquirectangularDialog {
                 cubes_to_equirectangular_vert_shader,
                 cubes_to_equirectangular_frag_shader,
             })));
-
-            self.webgl
-                .as_ref()
-                .unwrap()
-                .read()
-                .unwrap()
-                .convert(Path::new(
-                    "C:/Users/earne/Desktop/pano_project/pano/pano-rs/examples/6cubes_image",
-                ))
-                .unwrap();
         }
     }
 
-    fn update(&mut self, _msg: Self::Message) -> ShouldRender {
-        false
+    fn update(&mut self, msg: Self::Message) -> ShouldRender {
+        match msg {
+            Msg::OpenDirectoryDialog => {
+                let dialog_promise: js_sys::Promise =
+                    crate::wasm_bind::show_open_directory_dialog()
+                        .unwrap()
+                        .into();
+                let input_ref = self.input_ref.clone();
+                wasm_bindgen_futures::spawn_local(async move {
+                    let path_or_undefined = wasm_bindgen_futures::JsFuture::from(dialog_promise)
+                        .await
+                        .unwrap();
+                    if let Some(path) = path_or_undefined.as_string() {
+                        if let Some(input) = input_ref.cast::<HtmlInputElement>() {
+                            input.set_value(path.as_str());
+                        }
+                    }
+                });
+                false
+            }
+            Msg::Convert => {
+                if let Some(input) = self.input_ref.cast::<HtmlInputElement>() {
+                    self.webgl
+                        .as_ref()
+                        .unwrap()
+                        .read()
+                        .unwrap()
+                        .convert(Path::new(&input.value()))
+                        .unwrap();
+                }
+                false
+            }
+        }
     }
 
     fn change(&mut self, props: Self::Properties) -> ShouldRender {
@@ -117,13 +143,16 @@ impl Component for CubesToEquirectangularDialog {
                     <br />
                     {"6cubes images: front.png, back.png, left.png, right.png, top.png, botton.pngが入ったディレクトリを指定してください"}
                     <br />
-                    <input/>
-                    <button>{ "ファイルを選択" }</button>
+                    <input
+                        ref={self.input_ref.clone()}
+                    />
+                    <button onclick=self.link.callback(|_| Msg::OpenDirectoryDialog)>{ "ファイルを選択" }</button>
                     <canvas
                         id="6cubes_canvas"
                         height="1"
                         width="1"
                     ></canvas>
+                    <button onclick=self.link.callback(|_| Msg::Convert)>{ "変換" }</button>
                 </dialog>
             </div>
         }
