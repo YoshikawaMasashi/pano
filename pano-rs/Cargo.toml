@@ -28,6 +28,7 @@ features = [
   'Element',
   'HtmlCanvasElement',
   'HtmlInputElement',
+  'HtmlDivElement',
   'WebGlBuffer',
   'WebGlVertexArrayObject',
   'WebGl2RenderingContext',

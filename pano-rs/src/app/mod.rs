@@ -9,7 +9,7 @@ use std::sync::{Arc, Mutex, RwLock};
 
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
-use web_sys::{WebGl2RenderingContext, WebGlShader, WebGlTexture};
+use web_sys::{HtmlDivElement, WebGl2RenderingContext, WebGlShader, WebGlTexture};
 use yew::prelude::*;
 
 use crate::file_io::{read_image, write_image};
@@ -58,6 +58,7 @@ pub enum Msg {
     ExportPng,
     ImportPng,
     SwitchEnableGrid,
+    ChangeMainCanvasSize { height: f32, width: f32 },
 }
 
 pub struct ModelWebGL {
@@ -85,10 +86,15 @@ pub struct Model {
     dialog: Dialog,
     enable_grid: bool,
 
+    main_canvas_height: f32,
+    main_canvas_width: f32,
+    main_canvas_wrapper_ref: NodeRef,
+
     render_canvas_f: Arc<RwLock<Option<Closure<dyn FnMut()>>>>,
     key_down_f: Arc<RwLock<Option<Closure<dyn FnMut(web_sys::KeyboardEvent)>>>>,
     export_png_f: Arc<RwLock<Option<Closure<dyn FnMut()>>>>,
     import_png_f: Arc<RwLock<Option<Closure<dyn FnMut()>>>>,
+    resize_f: Arc<RwLock<Option<Closure<dyn FnMut()>>>>,
 }
 
 impl Component for Model {
@@ -106,16 +112,47 @@ impl Component for Model {
             dialog: Dialog::None,
             enable_grid: false,
 
+            main_canvas_height: 960.0,
+            main_canvas_width: 960.0,
+            main_canvas_wrapper_ref: NodeRef::default(),
+
             render_canvas_f: Arc::new(RwLock::new(None)),
             key_down_f: Arc::new(RwLock::new(None)),
             export_png_f: Arc::new(RwLock::new(None)),
             import_png_f: Arc::new(RwLock::new(None)),
+            resize_f: Arc::new(RwLock::new(None)),
         }
     }
 
     fn rendered(&mut self, first_render: bool) {
         if first_render {
-            let document = web_sys::window().unwrap().document().unwrap();
+            let window = web_sys::window().unwrap();
+            let document = window.document().unwrap();
+
+            let link = self.link.clone();
+            let main_canvas_wrapper_ref = self.main_canvas_wrapper_ref.clone();
+            *self.resize_f.write().unwrap() = Some(Closure::wrap(Box::new(move || {
+                if let Some(main_canvas_wrapper) = main_canvas_wrapper_ref.cast::<HtmlDivElement>()
+                {
+                    link.send_message(Msg::ChangeMainCanvasSize {
+                        height: main_canvas_wrapper.offset_height() as f32,
+                        width: main_canvas_wrapper.offset_width() as f32,
+                    });
+                }
+            })
+                as Box<dyn FnMut()>));
+            window
+                .add_event_listener_with_callback(
+                    "resize",
+                    self.resize_f
+                        .read()
+                        .unwrap()
+                        .as_ref()
+                        .unwrap()
+                        .as_ref()
+                        .unchecked_ref(),
+                )
+                .unwrap();
 
             let body = document.body().unwrap();
             let link = self.link.clone();
@@ -139,7 +176,7 @@ impl Component for Model {
             )
             .unwrap();
 
-            let canvas = document.get_element_by_id("canvas").unwrap();
+            let canvas = document.get_element_by_id("main_canvas").unwrap();
             let canvas: web_sys::HtmlCanvasElement =
                 canvas.dyn_into::<web_sys::HtmlCanvasElement>().unwrap();
 
@@ -383,6 +420,11 @@ impl Component for Model {
                 self.enable_grid = !self.enable_grid;
                 true
             }
+            Msg::ChangeMainCanvasSize { width, height } => {
+                self.main_canvas_width = width;
+                self.main_canvas_height = height;
+                true
+            }
         }
     }
 
@@ -395,34 +437,43 @@ impl Component for Model {
 
     fn view(&self) -> Html {
         html! {
-            <div>
-                <button onclick=self.link.callback(|_| Msg::AddOne)>{ "円を追加" }</button>
-                <button onclick=self.link.callback(|_| Msg::SwitchEnableGrid)>{ "グリッド" }</button>
-                <canvas
-                    id="canvas"
-                    height="960"
-                    width="960"
-                    onmousedown=self.link.callback(|_| Msg::MouseDownCanvas)
-                    onmouseup=self.link.callback(|_| Msg::MouseUpCanvas)
-                    onmouseout=self.link.callback(|_| Msg::MouseUpCanvas)
-                    onmousemove=self.link.callback(|e: web_sys::MouseEvent| Msg::MouseMoveCanvas{movement_x: e.movement_x() as f32, movement_y: e.movement_y() as f32})
-                ></canvas>
-                {
-                    if self.dialog.open() {
-                        html! {
-                           <div id="overlay"></div>
-                        }
-                    } else {
-                        html! {
+            <div id="yew_root">
+                <div id="tool">
+                    <button onclick=self.link.callback(|_| Msg::AddOne)>{ "円を追加" }</button>
+                    <button onclick=self.link.callback(|_| Msg::SwitchEnableGrid)>{ "グリッド" }</button>
+                </div>
+                <div
+                    id="main_canvas_wrapper"
+                    ref={self.main_canvas_wrapper_ref.clone()}
+                >
+                    <canvas
+                        id="main_canvas"
+                        height=self.main_canvas_height.to_string()
+                        width=self.main_canvas_width.to_string()
+                        onmousedown=self.link.callback(|_| Msg::MouseDownCanvas)
+                        onmouseup=self.link.callback(|_| Msg::MouseUpCanvas)
+                        onmouseout=self.link.callback(|_| Msg::MouseUpCanvas)
+                        onmousemove=self.link.callback(|e: web_sys::MouseEvent| Msg::MouseMoveCanvas{movement_x: e.movement_x() as f32, movement_y: e.movement_y() as f32})
+                    />
+                </div>
+                <div id="dialog">
+                    {
+                        if self.dialog.open() {
+                            html! {
+                            <div id="overlay"></div>
+                            }
+                        } else {
+                            html! {
+                            }
                         }
                     }
-                }
-                <CubesToEquirectangularDialog
-                    open=self.dialog.cubes_to_equirectangular_dialog_open()
-                />
-                <ImageTransferDialog
-                    open=self.dialog.image_transfer_dialog_open()
-                />
+                    <CubesToEquirectangularDialog
+                        open=self.dialog.cubes_to_equirectangular_dialog_open()
+                    />
+                    <ImageTransferDialog
+                        open=self.dialog.image_transfer_dialog_open()
+                    />
+                </div>
             </div>
         }
     }
@@ -560,7 +611,7 @@ impl ModelWebGL {
 
     pub fn show_texture(&self, rotation_x: f32, rotation_y: f32) -> Result<(), JsValue> {
         let document = web_sys::window().unwrap().document().unwrap();
-        let canvas = document.get_element_by_id("canvas").unwrap();
+        let canvas = document.get_element_by_id("main_canvas").unwrap();
         let canvas: web_sys::HtmlCanvasElement = canvas.dyn_into::<web_sys::HtmlCanvasElement>()?;
 
         self.context
@@ -607,7 +658,7 @@ impl ModelWebGL {
 
     pub fn show_alpha_grid(&self, rotation_x: f32, rotation_y: f32) -> Result<(), JsValue> {
         let document = web_sys::window().unwrap().document().unwrap();
-        let canvas = document.get_element_by_id("canvas").unwrap();
+        let canvas = document.get_element_by_id("main_canvas").unwrap();
         let canvas: web_sys::HtmlCanvasElement = canvas.dyn_into::<web_sys::HtmlCanvasElement>()?;
 
         self.context
@@ -642,7 +693,7 @@ impl ModelWebGL {
 
     pub fn show_grid(&self, rotation_x: f32, rotation_y: f32) -> Result<(), JsValue> {
         let document = web_sys::window().unwrap().document().unwrap();
-        let canvas = document.get_element_by_id("canvas").unwrap();
+        let canvas = document.get_element_by_id("main_canvas").unwrap();
         let canvas: web_sys::HtmlCanvasElement = canvas.dyn_into::<web_sys::HtmlCanvasElement>()?;
 
         self.context
