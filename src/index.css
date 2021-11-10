@@ -5,9 +5,14 @@ div p {
     text-align: center;
 }
 
-
 #main_canvas{
 	display: block;
+    position: absolute;
+    top: 0px;
+}
+#tool {
+    position: absolute;
+    top: 0px;
 }
 html, body, #yew_root, #main_canvas_wrapper{
 	width: 100%;

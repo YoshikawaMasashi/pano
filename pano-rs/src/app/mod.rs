@@ -438,10 +438,6 @@ impl Component for Model {
     fn view(&self) -> Html {
         html! {
             <div id="yew_root">
-                <div id="tool">
-                    <button onclick=self.link.callback(|_| Msg::AddOne)>{ "円を追加" }</button>
-                    <button onclick=self.link.callback(|_| Msg::SwitchEnableGrid)>{ "グリッド" }</button>
-                </div>
                 <div
                     id="main_canvas_wrapper"
                     ref={self.main_canvas_wrapper_ref.clone()}
@@ -455,6 +451,10 @@ impl Component for Model {
                         onmouseout=self.link.callback(|_| Msg::MouseUpCanvas)
                         onmousemove=self.link.callback(|e: web_sys::MouseEvent| Msg::MouseMoveCanvas{movement_x: e.movement_x() as f32, movement_y: e.movement_y() as f32})
                     />
+                </div>
+                <div id="tool">
+                    <button onclick=self.link.callback(|_| Msg::AddOne)>{ "円を追加" }</button>
+                    <button onclick=self.link.callback(|_| Msg::SwitchEnableGrid)>{ "グリッド" }</button>
                 </div>
                 <div id="dialog">
                     {
