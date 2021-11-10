@@ -63,13 +63,12 @@ pub enum Msg {
 pub struct ModelWebGL {
     context: WebGl2RenderingContext,
     work_texture: Arc<Mutex<WebGlTexture>>,
-    show_panorama_vert_shader: WebGlShader,
+
+    all_view_vert_shader: WebGlShader,
+
     show_panorama_frag_shader: WebGlShader,
-    draw_circle_vert_shader: WebGlShader,
     draw_circle_frag_shader: WebGlShader,
-    alpha_grid_vert_shader: WebGlShader,
     alpha_grid_frag_shader: WebGlShader,
-    grid_vert_shader: WebGlShader,
     grid_frag_shader: WebGlShader,
 }
 
@@ -162,22 +161,17 @@ impl Component for Model {
             )
             .unwrap();
             */
-            let show_panorama_vert_shader = compile_shader(
+            let all_view_vert_shader = compile_shader(
                 &context,
                 WebGl2RenderingContext::VERTEX_SHADER,
-                include_str!("../shaders/show_panorama.vert"),
+                include_str!("../shaders/all_view.vert"),
             )
             .unwrap();
+
             let show_panorama_frag_shader = compile_shader(
                 &context,
                 WebGl2RenderingContext::FRAGMENT_SHADER,
                 include_str!("../shaders/show_panorama.frag"),
-            )
-            .unwrap();
-            let draw_circle_vert_shader = compile_shader(
-                &context,
-                WebGl2RenderingContext::VERTEX_SHADER,
-                include_str!("../shaders/draw_circle.vert"),
             )
             .unwrap();
             let draw_circle_frag_shader = compile_shader(
@@ -186,22 +180,10 @@ impl Component for Model {
                 include_str!("../shaders/draw_circle.frag"),
             )
             .unwrap();
-            let alpha_grid_vert_shader = compile_shader(
-                &context,
-                WebGl2RenderingContext::VERTEX_SHADER,
-                include_str!("../shaders/alpha_grid.vert"),
-            )
-            .unwrap();
             let alpha_grid_frag_shader = compile_shader(
                 &context,
                 WebGl2RenderingContext::FRAGMENT_SHADER,
                 include_str!("../shaders/alpha_grid.frag"),
-            )
-            .unwrap();
-            let grid_vert_shader = compile_shader(
-                &context,
-                WebGl2RenderingContext::VERTEX_SHADER,
-                include_str!("../shaders/grid.vert"),
             )
             .unwrap();
             let grid_frag_shader = compile_shader(
@@ -210,20 +192,6 @@ impl Component for Model {
                 include_str!("../shaders/grid.frag"),
             )
             .unwrap();
-            /*
-            let grid_vert_shader = crate::webgl_utils::read_shader(
-                Path::new("./pano-rs/src/grid.vert"),
-                &context,
-                WebGl2RenderingContext::VERTEX_SHADER,
-            )
-            .unwrap();
-            let grid_frag_shader = crate::webgl_utils::read_shader(
-                Path::new("./pano-rs/src/grid.frag"),
-                &context,
-                WebGl2RenderingContext::FRAGMENT_SHADER,
-            )
-            .unwrap();
-            */
 
             let work_texture = context.create_texture().unwrap();
 
@@ -256,13 +224,12 @@ impl Component for Model {
             self.webgl = Some(Arc::new(RwLock::new(ModelWebGL {
                 context,
                 work_texture: Arc::new(Mutex::new(work_texture)),
-                show_panorama_vert_shader,
+
+                all_view_vert_shader,
+
                 show_panorama_frag_shader,
-                draw_circle_vert_shader,
                 draw_circle_frag_shader,
-                alpha_grid_vert_shader,
                 alpha_grid_frag_shader,
-                grid_vert_shader,
                 grid_frag_shader,
             })));
 
@@ -541,7 +508,7 @@ impl ModelWebGL {
 
         let program = link_program(
             &self.context,
-            &self.draw_circle_vert_shader,
+            &self.all_view_vert_shader,
             &self.draw_circle_frag_shader,
         )?;
         let uniforms = get_uniform_locations(
@@ -600,7 +567,7 @@ impl ModelWebGL {
             .viewport(0, 0, canvas.width() as i32, canvas.height() as i32);
         let program = link_program(
             &self.context,
-            &self.show_panorama_vert_shader,
+            &self.all_view_vert_shader,
             &self.show_panorama_frag_shader,
         )?;
         let uniforms = get_uniform_locations(
@@ -647,7 +614,7 @@ impl ModelWebGL {
             .viewport(0, 0, canvas.width() as i32, canvas.height() as i32);
         let program = link_program(
             &self.context,
-            &self.alpha_grid_vert_shader,
+            &self.all_view_vert_shader,
             &self.alpha_grid_frag_shader,
         )?;
         let uniforms = get_uniform_locations(
@@ -682,7 +649,7 @@ impl ModelWebGL {
             .viewport(0, 0, canvas.width() as i32, canvas.height() as i32);
         let program = link_program(
             &self.context,
-            &self.grid_vert_shader,
+            &self.all_view_vert_shader,
             &self.grid_frag_shader,
         )?;
         let uniforms = get_uniform_locations(

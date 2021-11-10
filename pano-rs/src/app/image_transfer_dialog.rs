@@ -35,7 +35,9 @@ pub struct ImageTransferDialog {
 
 pub struct ModelWebGL {
     context: WebGl2RenderingContext,
-    image_transfer_vert_shader: WebGlShader,
+
+    all_view_vert_shader: WebGlShader,
+
     image_transfer_frag_shader: WebGlShader,
 }
 
@@ -72,10 +74,10 @@ impl Component for ImageTransferDialog {
             context.clear_color(0.0, 0.0, 0.0, 1.0);
             context.enable(WebGl2RenderingContext::BLEND);
 
-            let image_transfer_vert_shader = compile_shader(
+            let all_view_vert_shader = compile_shader(
                 &context,
                 WebGl2RenderingContext::VERTEX_SHADER,
-                include_str!("../shaders/image_transfer.vert"),
+                include_str!("../shaders/all_view.vert"),
             )
             .unwrap();
             let image_transfer_frag_shader = compile_shader(
@@ -87,7 +89,7 @@ impl Component for ImageTransferDialog {
 
             self.webgl = Some(Arc::new(RwLock::new(ModelWebGL {
                 context,
-                image_transfer_vert_shader,
+                all_view_vert_shader,
                 image_transfer_frag_shader,
             })));
         }
@@ -251,7 +253,7 @@ impl ModelWebGL {
 
         let program = link_program(
             &self.context,
-            &self.image_transfer_vert_shader,
+            &self.all_view_vert_shader,
             &self.image_transfer_frag_shader,
         )?;
         let uniforms = get_uniform_locations(&self.context, &program, vec!["tex".to_string()])?;

@@ -33,7 +33,9 @@ pub struct CubesToEquirectangularDialog {
 
 pub struct ModelWebGL {
     context: WebGl2RenderingContext,
-    cubes_to_equirectangular_vert_shader: WebGlShader,
+
+    all_view_vert_shader: WebGlShader,
+
     cubes_to_equirectangular_frag_shader: WebGlShader,
 }
 
@@ -67,10 +69,10 @@ impl Component for CubesToEquirectangularDialog {
             context.clear_color(0.0, 0.0, 0.0, 1.0);
             context.enable(WebGl2RenderingContext::BLEND);
 
-            let cubes_to_equirectangular_vert_shader = compile_shader(
+            let all_view_vert_shader = compile_shader(
                 &context,
                 WebGl2RenderingContext::VERTEX_SHADER,
-                include_str!("../shaders/6cubes_to_equirectangular.vert"),
+                include_str!("../shaders/all_view.vert"),
             )
             .unwrap();
             let cubes_to_equirectangular_frag_shader = compile_shader(
@@ -82,7 +84,7 @@ impl Component for CubesToEquirectangularDialog {
 
             self.webgl = Some(Arc::new(RwLock::new(ModelWebGL {
                 context,
-                cubes_to_equirectangular_vert_shader,
+                all_view_vert_shader,
                 cubes_to_equirectangular_frag_shader,
             })));
         }
@@ -256,7 +258,7 @@ impl ModelWebGL {
 
         let program = link_program(
             &self.context,
-            &self.cubes_to_equirectangular_vert_shader,
+            &self.all_view_vert_shader,
             &self.cubes_to_equirectangular_frag_shader,
         )?;
         let uniforms = get_uniform_locations(

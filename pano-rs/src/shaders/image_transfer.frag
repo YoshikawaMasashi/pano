@@ -81,7 +81,7 @@ void main() {
                 float scale = 0.005 + 0.005 * rand(vec2(v_azimuth + float(i), v_elevation + float(j)));
                 
                 float azimuth = fragment_position.x * PI;
-                float elevation = fragment_position.y * PI / 2.0;
+                float elevation = -fragment_position.y * PI / 2.0;
 
                 vec3 pt;
                 pt.x = cos(elevation) * sin(azimuth);

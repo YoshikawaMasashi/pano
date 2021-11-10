@@ -10,9 +10,8 @@ uniform float rotation_x;
 uniform float rotation_y;
 
 void main(void) {
-    vec3 pt = vec3(fragment_position.x, fragment_position.y, 1.0);
+    vec3 pt = vec3(fragment_position.x, -fragment_position.y, 1.0);
     float value = 0.0;
-
     
     float rotation_x_ = rotation_x / 180.0 * PI;
     float rotation_y_ = rotation_y / 180.0 * PI;
