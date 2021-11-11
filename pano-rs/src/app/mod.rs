@@ -11,6 +11,7 @@ use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
 use web_sys::{HtmlDivElement, WebGl2RenderingContext, WebGlShader, WebGlTexture};
 use yew::prelude::*;
+use yew::{html, ChangeData, Html, InputData};
 
 use crate::file_io::{read_image, write_image};
 use crate::webgl_utils::{compile_shader, get_uniform_locations, link_program};
@@ -59,6 +60,7 @@ pub enum Msg {
     ImportPng,
     SwitchEnableGrid,
     ChangeMainCanvasSize { height: f32, width: f32 },
+    ChangeFOV { fov: f32 },
 }
 
 pub struct ModelWebGL {
@@ -89,6 +91,7 @@ pub struct Model {
 
     main_canvas_height: f32,
     main_canvas_width: f32,
+    fov: f32,
     main_canvas_wrapper_ref: NodeRef,
 
     render_canvas_f: Arc<RwLock<Option<Closure<dyn FnMut()>>>>,
@@ -115,6 +118,7 @@ impl Component for Model {
 
             main_canvas_height: 960.0,
             main_canvas_width: 960.0,
+            fov: 60.0,
             main_canvas_wrapper_ref: NodeRef::default(),
 
             render_canvas_f: Arc::new(RwLock::new(None)),
@@ -283,7 +287,7 @@ impl Component for Model {
                 .unwrap()
                 .read()
                 .unwrap()
-                .show(self.rotation_x, self.rotation_y, self.enable_grid)
+                .show(self.rotation_x, self.rotation_y, self.fov, self.enable_grid)
                 .unwrap();
 
             let link = self.link.clone();
@@ -365,7 +369,7 @@ impl Component for Model {
                     .unwrap()
                     .read()
                     .unwrap()
-                    .show(self.rotation_x, self.rotation_y, self.enable_grid)
+                    .show(self.rotation_x, self.rotation_y, self.fov, self.enable_grid)
                     .unwrap();
                 request_animation_frame(self.render_canvas_f.read().unwrap().as_ref().unwrap());
                 false
@@ -433,6 +437,10 @@ impl Component for Model {
                 self.main_canvas_width = width;
                 true
             }
+            Msg::ChangeFOV { fov } => {
+                self.fov = fov;
+                false
+            }
         }
     }
 
@@ -457,12 +465,31 @@ impl Component for Model {
                         onmousedown=self.link.callback(|_| Msg::MouseDownCanvas)
                         onmouseup=self.link.callback(|_| Msg::MouseUpCanvas)
                         onmouseout=self.link.callback(|_| Msg::MouseUpCanvas)
-                        onmousemove=self.link.callback(|e: web_sys::MouseEvent| Msg::MouseMoveCanvas{movement_x: e.movement_x() as f32, movement_y: e.movement_y() as f32})
+                        onmousemove=self.link.callback(|e: web_sys::MouseEvent| Msg::MouseMoveCanvas{
+                            movement_x: e.movement_x() as f32,
+                            movement_y: e.movement_y() as f32
+                        })
                     />
                 </div>
                 <div id="tool">
                     <button onclick=self.link.callback(|_| Msg::AddOne)>{ "円を追加" }</button>
                     <button onclick=self.link.callback(|_| Msg::SwitchEnableGrid)>{ "グリッド" }</button>
+                    <input
+                        type="range"
+                        id="volume"
+                        name="volume"
+                        min="5"
+                        max="120"
+                        value=self.fov.to_string()
+                        oninput=self.link.callback(|e: InputData| Msg::ChangeFOV{fov: e.value.parse::<f32>().unwrap()})
+                        onchange=self.link.callback(|e: ChangeData| {
+                            if let ChangeData::Value(value) = e {
+                                Msg::ChangeFOV{fov: value.parse::<f32>().unwrap()}
+                            } else {
+                                panic!("error");
+                            }})
+                    />
+                    <label for="volume">{"FOV"}</label>
                 </div>
                 <div id="dialog">
                     {
@@ -608,16 +635,22 @@ impl ModelWebGL {
         Ok(())
     }
 
-    pub fn show(&self, rotation_x: f32, rotation_y: f32, enable_grid: bool) -> Result<(), JsValue> {
-        self.show_alpha_grid(rotation_x, rotation_y)?;
-        self.show_texture(rotation_x, rotation_y)?;
+    pub fn show(
+        &self,
+        rotation_x: f32,
+        rotation_y: f32,
+        fov: f32,
+        enable_grid: bool,
+    ) -> Result<(), JsValue> {
+        self.show_alpha_grid(rotation_x, rotation_y, fov)?;
+        self.show_texture(rotation_x, rotation_y, fov)?;
         if enable_grid {
-            self.show_grid(rotation_x, rotation_y)?;
+            self.show_grid(rotation_x, rotation_y, fov)?;
         }
         Ok(())
     }
 
-    pub fn show_texture(&self, rotation_x: f32, rotation_y: f32) -> Result<(), JsValue> {
+    pub fn show_texture(&self, rotation_x: f32, rotation_y: f32, fov: f32) -> Result<(), JsValue> {
         let document = web_sys::window().unwrap().document().unwrap();
         let canvas = document.get_element_by_id("main_canvas").unwrap();
         let canvas: web_sys::HtmlCanvasElement = canvas.dyn_into::<web_sys::HtmlCanvasElement>()?;
@@ -635,6 +668,7 @@ impl ModelWebGL {
             vec![
                 "canvas_height".to_string(),
                 "canvas_width".to_string(),
+                "fov".to_string(),
                 "tex".to_string(),
                 "rotation_x".to_string(),
                 "rotation_y".to_string(),
@@ -651,6 +685,7 @@ impl ModelWebGL {
             .uniform1f(Some(&uniforms["canvas_height"]), canvas.height() as f32);
         self.context
             .uniform1f(Some(&uniforms["canvas_width"]), canvas.width() as f32);
+        self.context.uniform1f(Some(&uniforms["fov"]), fov);
         self.context.uniform1i(Some(&uniforms["tex"]), 0);
         self.context
             .uniform1f(Some(&uniforms["rotation_x"]), rotation_x);
@@ -670,7 +705,12 @@ impl ModelWebGL {
         Ok(())
     }
 
-    pub fn show_alpha_grid(&self, rotation_x: f32, rotation_y: f32) -> Result<(), JsValue> {
+    pub fn show_alpha_grid(
+        &self,
+        rotation_x: f32,
+        rotation_y: f32,
+        fov: f32,
+    ) -> Result<(), JsValue> {
         let document = web_sys::window().unwrap().document().unwrap();
         let canvas = document.get_element_by_id("main_canvas").unwrap();
         let canvas: web_sys::HtmlCanvasElement = canvas.dyn_into::<web_sys::HtmlCanvasElement>()?;
@@ -688,6 +728,7 @@ impl ModelWebGL {
             vec![
                 "canvas_height".to_string(),
                 "canvas_width".to_string(),
+                "fov".to_string(),
                 "rotation_x".to_string(),
                 "rotation_y".to_string(),
             ],
@@ -704,6 +745,7 @@ impl ModelWebGL {
             .uniform1f(Some(&uniforms["canvas_height"]), canvas.height() as f32);
         self.context
             .uniform1f(Some(&uniforms["canvas_width"]), canvas.width() as f32);
+        self.context.uniform1f(Some(&uniforms["fov"]), fov);
         self.context
             .uniform1f(Some(&uniforms["rotation_x"]), rotation_x);
         self.context
@@ -714,7 +756,7 @@ impl ModelWebGL {
         Ok(())
     }
 
-    pub fn show_grid(&self, rotation_x: f32, rotation_y: f32) -> Result<(), JsValue> {
+    pub fn show_grid(&self, rotation_x: f32, rotation_y: f32, fov: f32) -> Result<(), JsValue> {
         let document = web_sys::window().unwrap().document().unwrap();
         let canvas = document.get_element_by_id("main_canvas").unwrap();
         let canvas: web_sys::HtmlCanvasElement = canvas.dyn_into::<web_sys::HtmlCanvasElement>()?;
@@ -732,6 +774,7 @@ impl ModelWebGL {
             vec![
                 "canvas_height".to_string(),
                 "canvas_width".to_string(),
+                "fov".to_string(),
                 "rotation_x".to_string(),
                 "rotation_y".to_string(),
             ],
@@ -742,6 +785,7 @@ impl ModelWebGL {
             .uniform1f(Some(&uniforms["canvas_height"]), canvas.height() as f32);
         self.context
             .uniform1f(Some(&uniforms["canvas_width"]), canvas.width() as f32);
+        self.context.uniform1f(Some(&uniforms["fov"]), fov);
         self.context
             .uniform1f(Some(&uniforms["rotation_x"]), rotation_x);
         self.context
