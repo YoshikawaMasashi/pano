@@ -66,6 +66,7 @@ pub struct ModelWebGL {
     work_texture: Arc<Mutex<WebGlTexture>>,
 
     all_view_vert_shader: WebGlShader,
+    drawing_canvas_vert_shader: WebGlShader,
 
     show_panorama_frag_shader: WebGlShader,
     draw_circle_frag_shader: WebGlShader,
@@ -204,6 +205,12 @@ impl Component for Model {
                 include_str!("../shaders/all_view.vert"),
             )
             .unwrap();
+            let drawing_canvas_vert_shader = compile_shader(
+                &context,
+                WebGl2RenderingContext::VERTEX_SHADER,
+                include_str!("../shaders/drawing_canvas.vert"),
+            )
+            .unwrap();
 
             let show_panorama_frag_shader = compile_shader(
                 &context,
@@ -263,6 +270,7 @@ impl Component for Model {
                 work_texture: Arc::new(Mutex::new(work_texture)),
 
                 all_view_vert_shader,
+                drawing_canvas_vert_shader,
 
                 show_panorama_frag_shader,
                 draw_circle_frag_shader,
@@ -420,9 +428,9 @@ impl Component for Model {
                 self.enable_grid = !self.enable_grid;
                 true
             }
-            Msg::ChangeMainCanvasSize { width, height } => {
-                self.main_canvas_width = width;
+            Msg::ChangeMainCanvasSize { height, width } => {
                 self.main_canvas_height = height;
+                self.main_canvas_width = width;
                 true
             }
         }
@@ -502,8 +510,8 @@ impl Model {
 impl ModelWebGL {
     pub fn import_png_to_work_texture(&self, path: &Path) -> Result<(), JsValue> {
         let image = read_image(path);
-        assert_eq!(image.width(), WORK_TEXTURE_WIDTH as u32);
         assert_eq!(image.height(), WORK_TEXTURE_HEIGHT as u32);
+        assert_eq!(image.width(), WORK_TEXTURE_WIDTH as u32);
 
         let work_texture = self.work_texture.lock().unwrap();
         self.context
@@ -618,13 +626,15 @@ impl ModelWebGL {
             .viewport(0, 0, canvas.width() as i32, canvas.height() as i32);
         let program = link_program(
             &self.context,
-            &self.all_view_vert_shader,
+            &self.drawing_canvas_vert_shader,
             &self.show_panorama_frag_shader,
         )?;
         let uniforms = get_uniform_locations(
             &self.context,
             &program,
             vec![
+                "canvas_height".to_string(),
+                "canvas_width".to_string(),
                 "tex".to_string(),
                 "rotation_x".to_string(),
                 "rotation_y".to_string(),
@@ -637,6 +647,10 @@ impl ModelWebGL {
             .active_texture(WebGl2RenderingContext::TEXTURE0);
         self.context
             .bind_texture(WebGl2RenderingContext::TEXTURE_2D, Some(&work_texture));
+        self.context
+            .uniform1f(Some(&uniforms["canvas_height"]), canvas.height() as f32);
+        self.context
+            .uniform1f(Some(&uniforms["canvas_width"]), canvas.width() as f32);
         self.context.uniform1i(Some(&uniforms["tex"]), 0);
         self.context
             .uniform1f(Some(&uniforms["rotation_x"]), rotation_x);
@@ -665,13 +679,18 @@ impl ModelWebGL {
             .viewport(0, 0, canvas.width() as i32, canvas.height() as i32);
         let program = link_program(
             &self.context,
-            &self.all_view_vert_shader,
+            &self.drawing_canvas_vert_shader,
             &self.alpha_grid_frag_shader,
         )?;
         let uniforms = get_uniform_locations(
             &self.context,
             &program,
-            vec!["rotation_x".to_string(), "rotation_y".to_string()],
+            vec![
+                "canvas_height".to_string(),
+                "canvas_width".to_string(),
+                "rotation_x".to_string(),
+                "rotation_y".to_string(),
+            ],
         )?;
         self.context.use_program(Some(&program));
 
@@ -681,6 +700,10 @@ impl ModelWebGL {
             WebGl2RenderingContext::ONE_MINUS_SRC_ALPHA,
         );
 
+        self.context
+            .uniform1f(Some(&uniforms["canvas_height"]), canvas.height() as f32);
+        self.context
+            .uniform1f(Some(&uniforms["canvas_width"]), canvas.width() as f32);
         self.context
             .uniform1f(Some(&uniforms["rotation_x"]), rotation_x);
         self.context
@@ -700,16 +723,25 @@ impl ModelWebGL {
             .viewport(0, 0, canvas.width() as i32, canvas.height() as i32);
         let program = link_program(
             &self.context,
-            &self.all_view_vert_shader,
+            &self.drawing_canvas_vert_shader,
             &self.grid_frag_shader,
         )?;
         let uniforms = get_uniform_locations(
             &self.context,
             &program,
-            vec!["rotation_x".to_string(), "rotation_y".to_string()],
+            vec![
+                "canvas_height".to_string(),
+                "canvas_width".to_string(),
+                "rotation_x".to_string(),
+                "rotation_y".to_string(),
+            ],
         )?;
         self.context.use_program(Some(&program));
 
+        self.context
+            .uniform1f(Some(&uniforms["canvas_height"]), canvas.height() as f32);
+        self.context
+            .uniform1f(Some(&uniforms["canvas_width"]), canvas.width() as f32);
         self.context
             .uniform1f(Some(&uniforms["rotation_x"]), rotation_x);
         self.context
