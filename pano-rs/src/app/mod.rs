@@ -51,16 +51,32 @@ impl Dialog {
 
 pub enum Msg {
     AddOne,
-    MouseDownCanvas,
-    MouseMoveCanvas { movement_x: f32, movement_y: f32 },
+    MouseDownCanvas {
+        button: i16,
+        offset_x: f32,
+        offset_y: f32,
+    },
+    MouseMoveCanvas {
+        movement_x: f32,
+        movement_y: f32,
+        offset_x: f32,
+        offset_y: f32,
+    },
     MouseUpCanvas,
     RenderCanvas,
-    KeyDown { key_code: u32 },
+    KeyDown {
+        key_code: u32,
+    },
     ExportPng,
     ImportPng,
     SwitchEnableGrid,
-    ChangeMainCanvasSize { height: f32, width: f32 },
-    ChangeFOV { fov: f32 },
+    ChangeMainCanvasSize {
+        height: f32,
+        width: f32,
+    },
+    ChangeFOV {
+        fov: f32,
+    },
 }
 
 pub struct ModelWebGL {
@@ -69,11 +85,13 @@ pub struct ModelWebGL {
 
     all_view_vert_shader: WebGlShader,
     drawing_canvas_vert_shader: WebGlShader,
+    brush_vert_shader: WebGlShader,
 
     show_panorama_frag_shader: WebGlShader,
     draw_circle_frag_shader: WebGlShader,
     alpha_grid_frag_shader: WebGlShader,
     grid_frag_shader: WebGlShader,
+    brush_frag_shader: WebGlShader,
 }
 
 pub struct Model {
@@ -84,7 +102,9 @@ pub struct Model {
 
     rotation_x: f32,
     rotation_y: f32,
-    mouse_on: bool,
+    scroll_mouse_on: bool,
+    left_mouse_on: bool,
+    prev_mouse_point: Option<(f32, f32)>,
 
     dialog: Dialog,
     enable_grid: bool,
@@ -111,7 +131,9 @@ impl Component for Model {
             webgl: None,
             rotation_x: 0.0,
             rotation_y: 0.0,
-            mouse_on: false,
+            scroll_mouse_on: false,
+            left_mouse_on: false,
+            prev_mouse_point: None,
 
             dialog: Dialog::None,
             enable_grid: false,
@@ -197,7 +219,7 @@ impl Component for Model {
             // when development, we can use read_shader with path
             /*
             let show_panorama_vert_shader = crate::webgl_utils::read_shader(
-                Path::new("./pano-rs/src/show_panorama.vert"),
+                Path::new("./pano-rs/src/shaders/show_panorama.vert"),
                 &context,
                 WebGl2RenderingContext::VERTEX_SHADER,
             )
@@ -215,6 +237,20 @@ impl Component for Model {
                 include_str!("../shaders/drawing_canvas.vert"),
             )
             .unwrap();
+            let brush_vert_shader = crate::webgl_utils::read_shader(
+                Path::new("./pano-rs/src/shaders/brush.vert"),
+                &context,
+                WebGl2RenderingContext::VERTEX_SHADER,
+            )
+            .unwrap();
+            /*
+            let brush_vert_shader = compile_shader(
+                &context,
+                WebGl2RenderingContext::VERTEX_SHADER,
+                include_str!("../shaders/brush.vert"),
+            )
+            .unwrap();
+            */
 
             let show_panorama_frag_shader = compile_shader(
                 &context,
@@ -240,6 +276,20 @@ impl Component for Model {
                 include_str!("../shaders/grid.frag"),
             )
             .unwrap();
+            let brush_frag_shader = crate::webgl_utils::read_shader(
+                Path::new("./pano-rs/src/shaders/brush.frag"),
+                &context,
+                WebGl2RenderingContext::FRAGMENT_SHADER,
+            )
+            .unwrap();
+            /*
+            let brush_frag_shader = compile_shader(
+                &context,
+                WebGl2RenderingContext::FRAGMENT_SHADER,
+                include_str!("../shaders/brush.frag"),
+            )
+            .unwrap();
+            */
 
             let work_texture = context.create_texture().unwrap();
 
@@ -275,11 +325,13 @@ impl Component for Model {
 
                 all_view_vert_shader,
                 drawing_canvas_vert_shader,
+                brush_vert_shader,
 
                 show_panorama_frag_shader,
                 draw_circle_frag_shader,
                 alpha_grid_frag_shader,
                 grid_frag_shader,
+                brush_frag_shader,
             })));
 
             self.webgl
@@ -344,23 +396,61 @@ impl Component for Model {
                 // re-render for it to appear on the page
                 true
             }
-            Msg::MouseDownCanvas => {
-                self.mouse_on = true;
+            Msg::MouseDownCanvas {
+                button,
+                offset_x,
+                offset_y,
+            } => {
+                if button == 0 {
+                    self.left_mouse_on = true;
+                    self.prev_mouse_point = Some((offset_x, offset_y));
+                } else if button == 1 {
+                    self.scroll_mouse_on = true;
+                }
                 false
             }
             Msg::MouseMoveCanvas {
                 movement_x,
                 movement_y,
+                offset_x,
+                offset_y,
             } => {
-                if self.mouse_on {
+                if self.scroll_mouse_on {
                     self.rotation_y += 0.3 * movement_x;
                     self.rotation_x -= 0.3 * movement_y;
+                }
+                if self.left_mouse_on {
+                    let prev_mouse_point = self.prev_mouse_point.unwrap();
+                    self.webgl
+                        .as_ref()
+                        .unwrap()
+                        .read()
+                        .unwrap()
+                        .draw_brush(
+                            (
+                                2.0 * prev_mouse_point.0 / self.main_canvas_width as f32 - 1.0,
+                                1.0 - 2.0 * (prev_mouse_point.1 / self.main_canvas_height as f32),
+                                1.0,
+                            ),
+                            (
+                                2.0 * offset_x / self.main_canvas_width as f32 - 1.0,
+                                1.0 - 2.0 * offset_y / self.main_canvas_height as f32,
+                                1.0,
+                            ),
+                        )
+                        .unwrap();
+                    self.prev_mouse_point = Some((offset_x, offset_y));
                 }
                 false
             }
             Msg::MouseUpCanvas => {
-                self.mouse_on = false;
-                self.modify_rotation();
+                if self.left_mouse_on {
+                    self.left_mouse_on = false;
+                    self.prev_mouse_point = None;
+                } else if self.scroll_mouse_on {
+                    self.scroll_mouse_on = false;
+                    self.modify_rotation();
+                }
                 false
             }
             Msg::RenderCanvas => {
@@ -462,13 +552,18 @@ impl Component for Model {
                         id="main_canvas"
                         height=self.main_canvas_height.to_string()
                         width=self.main_canvas_width.to_string()
-                        onmousedown=self.link.callback(|_| Msg::MouseDownCanvas)
+                        onmousedown=self.link.callback(|e: web_sys::MouseEvent| Msg::MouseDownCanvas{button: e.button(), offset_x: e.offset_x() as f32,
+                            offset_y: e.offset_y() as f32})
                         onmouseup=self.link.callback(|_| Msg::MouseUpCanvas)
                         onmouseout=self.link.callback(|_| Msg::MouseUpCanvas)
-                        onmousemove=self.link.callback(|e: web_sys::MouseEvent| Msg::MouseMoveCanvas{
-                            movement_x: e.movement_x() as f32,
-                            movement_y: e.movement_y() as f32
-                        })
+                        onmousemove=self.link.callback(|e: web_sys::MouseEvent|
+                            Msg::MouseMoveCanvas{
+                                movement_x: e.movement_x() as f32,
+                                movement_y: e.movement_y() as f32,
+                                offset_x: e.offset_x() as f32,
+                                offset_y: e.offset_y() as f32
+                            }
+                        )
                     />
                 </div>
                 <div id="tool">
@@ -482,11 +577,11 @@ impl Component for Model {
                         max="120"
                         value=self.fov.to_string()
                         oninput=self.link.callback(|e: InputData| Msg::ChangeFOV{fov: e.value.parse::<f32>().unwrap()})
-                        onchange=self.link.callback(|e: ChangeData| {
+                        onchange=self.link.batch_callback(|e: ChangeData| {
                             if let ChangeData::Value(value) = e {
-                                Msg::ChangeFOV{fov: value.parse::<f32>().unwrap()}
+                                Some(Msg::ChangeFOV{fov: value.parse::<f32>().unwrap()})
                             } else {
-                                panic!("error");
+                                None
                             }})
                     />
                     <label for="volume">{"FOV"}</label>
@@ -829,6 +924,62 @@ impl ModelWebGL {
             image::RgbaImage::from_vec(WORK_TEXTURE_WIDTH as u32, WORK_TEXTURE_HEIGHT as u32, data)
                 .unwrap();
         write_image(path, data);
+        Ok(())
+    }
+
+    pub fn draw_brush(
+        &self,
+        start_position: (f32, f32, f32),
+        end_position: (f32, f32, f32),
+    ) -> Result<(), JsValue> {
+        let frame_buffer = self.context.create_framebuffer().unwrap();
+        self.context
+            .bind_framebuffer(WebGl2RenderingContext::FRAMEBUFFER, Some(&frame_buffer));
+
+        let work_texture = self.work_texture.lock().unwrap();
+        self.context.framebuffer_texture_2d(
+            WebGl2RenderingContext::FRAMEBUFFER,
+            WebGl2RenderingContext::COLOR_ATTACHMENT0,
+            WebGl2RenderingContext::TEXTURE_2D,
+            Some(&work_texture),
+            0,
+        );
+        self.context
+            .viewport(0, 0, WORK_TEXTURE_WIDTH as i32, WORK_TEXTURE_HEIGHT as i32);
+
+        let program = link_program(
+            &self.context,
+            &self.brush_vert_shader,
+            &self.brush_frag_shader,
+        )?;
+        let uniforms = get_uniform_locations(
+            &self.context,
+            &program,
+            vec!["start_position".to_string(), "end_position".to_string()],
+        )?;
+        self.context.use_program(Some(&program));
+        self.context.uniform3f(
+            Some(&uniforms["start_position"]),
+            start_position.0,
+            start_position.1,
+            start_position.2,
+        );
+        self.context.uniform3f(
+            Some(&uniforms["end_position"]),
+            end_position.0,
+            end_position.1,
+            end_position.2,
+        );
+
+        self.context.blend_func(
+            WebGl2RenderingContext::SRC_ALPHA,
+            WebGl2RenderingContext::ONE_MINUS_SRC_ALPHA,
+        );
+        self.context
+            .draw_arrays(WebGl2RenderingContext::TRIANGLES, 0, 24);
+
+        self.context
+            .bind_framebuffer(WebGl2RenderingContext::FRAMEBUFFER, None);
         Ok(())
     }
 }
