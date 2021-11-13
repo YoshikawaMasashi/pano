@@ -50,7 +50,6 @@ impl Dialog {
 }
 
 pub enum Msg {
-    AddOne,
     MouseDownCanvas {
         button: i16,
         offset_x: f32,
@@ -366,22 +365,6 @@ impl Component for Model {
 
     fn update(&mut self, msg: Self::Message) -> ShouldRender {
         match msg {
-            Msg::AddOne => {
-                self.webgl
-                    .as_ref()
-                    .unwrap()
-                    .read()
-                    .unwrap()
-                    .draw_circle(
-                        0.05,
-                        (-self.rotation_x, self.rotation_y, 0.0),
-                        (1.0, 0.5, 0.5, 1.0),
-                    )
-                    .unwrap();
-                // the value has changed so we need to
-                // re-render for it to appear on the page
-                true
-            }
             Msg::MouseDownCanvas {
                 button,
                 offset_x,
@@ -574,7 +557,6 @@ impl Component for Model {
                     )
                 />
                 <div id="tool">
-                    <button onclick=self.link.callback(|_| Msg::AddOne)>{ "円を追加" }</button>
                     <button onclick=self.link.callback(|_| Msg::SwitchEnableGrid)>{ "グリッド" }</button>
                     <input
                         type="range"
