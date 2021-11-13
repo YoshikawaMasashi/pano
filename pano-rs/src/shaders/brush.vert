@@ -55,14 +55,14 @@ void main(void) {
 
     vec3 center_position = (x1 + x2) / 2.0;
     float y_rot = asin(center_position.x / length(center_position.xz));
-    mat3 y_rot_mat = rotation_y(-y_rot);
+    mat3 y_rot_mat = rotation_y(y_rot);
 
     center_position = y_rot_mat * center_position;
     x1 = y_rot_mat * x1;
     x2 = y_rot_mat * x2;
 
     float x_rot = asin(center_position.y);
-    mat3 x_rot_mat = rotation_x(x_rot);
+    mat3 x_rot_mat = rotation_x(-x_rot);
     center_position = x_rot_mat * center_position;
     x1 = x_rot_mat * x1;
     x2 = x_rot_mat * x2;
