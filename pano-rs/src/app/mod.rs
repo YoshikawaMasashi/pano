@@ -109,10 +109,11 @@ pub struct Model {
     dialog: Dialog,
     enable_grid: bool,
 
-    main_canvas_height: f32,
-    main_canvas_width: f32,
+    app_height: f32,
+    app_width: f32,
+    main_canvas_size: f32,
     fov: f32,
-    main_canvas_wrapper_ref: NodeRef,
+    yew_root_ref: NodeRef,
 
     render_canvas_f: Arc<RwLock<Option<Closure<dyn FnMut()>>>>,
     key_down_f: Arc<RwLock<Option<Closure<dyn FnMut(web_sys::KeyboardEvent)>>>>,
@@ -138,10 +139,11 @@ impl Component for Model {
             dialog: Dialog::None,
             enable_grid: false,
 
-            main_canvas_height: 960.0,
-            main_canvas_width: 960.0,
+            app_height: 960.0,
+            app_width: 960.0,
+            main_canvas_size: 950.0,
             fov: 60.0,
-            main_canvas_wrapper_ref: NodeRef::default(),
+            yew_root_ref: NodeRef::default(),
 
             render_canvas_f: Arc::new(RwLock::new(None)),
             key_down_f: Arc::new(RwLock::new(None)),
@@ -157,10 +159,9 @@ impl Component for Model {
             let document = window.document().unwrap();
 
             let link = self.link.clone();
-            let main_canvas_wrapper_ref = self.main_canvas_wrapper_ref.clone();
+            let yew_root_ref = self.yew_root_ref.clone();
             *self.resize_f.write().unwrap() = Some(Closure::wrap(Box::new(move || {
-                if let Some(main_canvas_wrapper) = main_canvas_wrapper_ref.cast::<HtmlDivElement>()
-                {
+                if let Some(main_canvas_wrapper) = yew_root_ref.cast::<HtmlDivElement>() {
                     link.send_message(Msg::ChangeMainCanvasSize {
                         height: main_canvas_wrapper.offset_height() as f32,
                         width: main_canvas_wrapper.offset_width() as f32,
@@ -421,6 +422,7 @@ impl Component for Model {
                 }
                 if self.left_mouse_on {
                     let prev_mouse_point = self.prev_mouse_point.unwrap();
+                    let factor = (self.fov / 2.0 / 180.0 * std::f32::consts::PI).tan();
                     self.webgl
                         .as_ref()
                         .unwrap()
@@ -428,13 +430,15 @@ impl Component for Model {
                         .unwrap()
                         .draw_brush(
                             (
-                                2.0 * prev_mouse_point.0 / self.main_canvas_width as f32 - 1.0,
-                                1.0 - 2.0 * (prev_mouse_point.1 / self.main_canvas_height as f32),
+                                (2.0 * prev_mouse_point.0 / self.main_canvas_size as f32 - 1.0)
+                                    * factor,
+                                (1.0 - 2.0 * (prev_mouse_point.1 / self.main_canvas_size as f32))
+                                    * factor,
                                 1.0,
                             ),
                             (
-                                2.0 * offset_x / self.main_canvas_width as f32 - 1.0,
-                                1.0 - 2.0 * offset_y / self.main_canvas_height as f32,
+                                (2.0 * offset_x / self.main_canvas_size as f32 - 1.0) * factor,
+                                (1.0 - 2.0 * offset_y / self.main_canvas_size as f32) * factor,
                                 1.0,
                             ),
                         )
@@ -523,8 +527,13 @@ impl Component for Model {
                 true
             }
             Msg::ChangeMainCanvasSize { height, width } => {
-                self.main_canvas_height = height;
-                self.main_canvas_width = width;
+                self.app_height = height;
+                self.app_width = width;
+                if height > width {
+                    self.main_canvas_size = width - 10.0;
+                } else {
+                    self.main_canvas_size = height - 10.0;
+                }
                 true
             }
             Msg::ChangeFOV { fov } => {
@@ -543,29 +552,28 @@ impl Component for Model {
 
     fn view(&self) -> Html {
         html! {
-            <div id="yew_root">
-                <div
-                    id="main_canvas_wrapper"
-                    ref={self.main_canvas_wrapper_ref.clone()}
-                >
-                    <canvas
-                        id="main_canvas"
-                        height=self.main_canvas_height.to_string()
-                        width=self.main_canvas_width.to_string()
-                        onmousedown=self.link.callback(|e: web_sys::MouseEvent| Msg::MouseDownCanvas{button: e.button(), offset_x: e.offset_x() as f32,
-                            offset_y: e.offset_y() as f32})
-                        onmouseup=self.link.callback(|_| Msg::MouseUpCanvas)
-                        onmouseout=self.link.callback(|_| Msg::MouseUpCanvas)
-                        onmousemove=self.link.callback(|e: web_sys::MouseEvent|
-                            Msg::MouseMoveCanvas{
-                                movement_x: e.movement_x() as f32,
-                                movement_y: e.movement_y() as f32,
-                                offset_x: e.offset_x() as f32,
-                                offset_y: e.offset_y() as f32
-                            }
-                        )
-                    />
-                </div>
+            <div
+                id="yew_root"
+                ref={self.yew_root_ref.clone()}
+            >
+                <canvas
+                    id="main_canvas"
+                    height=self.main_canvas_size.to_string()
+                    width=self.main_canvas_size.to_string()
+                    onmousedown=self.link.callback(|e: web_sys::MouseEvent| Msg::MouseDownCanvas{button: e.button(), offset_x: e.offset_x() as f32,
+                        offset_y: e.offset_y() as f32})
+                    onmouseup=self.link.callback(|_| Msg::MouseUpCanvas)
+                    onmouseout=self.link.callback(|_| Msg::MouseUpCanvas)
+                    onmousemove=self.link.callback(|e: web_sys::MouseEvent|
+                        Msg::MouseMoveCanvas{
+                            movement_x: e.movement_x() as f32,
+                            movement_y: e.movement_y() as f32,
+                            offset_x: e.offset_x() as f32,
+                            offset_y: e.offset_y() as f32
+                        }
+
+                    )
+                />
                 <div id="tool">
                     <button onclick=self.link.callback(|_| Msg::AddOne)>{ "円を追加" }</button>
                     <button onclick=self.link.callback(|_| Msg::SwitchEnableGrid)>{ "グリッド" }</button>
@@ -761,8 +769,6 @@ impl ModelWebGL {
             &self.context,
             &program,
             vec![
-                "canvas_height".to_string(),
-                "canvas_width".to_string(),
                 "fov".to_string(),
                 "tex".to_string(),
                 "rotation_x".to_string(),
@@ -776,10 +782,6 @@ impl ModelWebGL {
             .active_texture(WebGl2RenderingContext::TEXTURE0);
         self.context
             .bind_texture(WebGl2RenderingContext::TEXTURE_2D, Some(&work_texture));
-        self.context
-            .uniform1f(Some(&uniforms["canvas_height"]), canvas.height() as f32);
-        self.context
-            .uniform1f(Some(&uniforms["canvas_width"]), canvas.width() as f32);
         self.context.uniform1f(Some(&uniforms["fov"]), fov);
         self.context.uniform1i(Some(&uniforms["tex"]), 0);
         self.context
@@ -821,8 +823,6 @@ impl ModelWebGL {
             &self.context,
             &program,
             vec![
-                "canvas_height".to_string(),
-                "canvas_width".to_string(),
                 "fov".to_string(),
                 "rotation_x".to_string(),
                 "rotation_y".to_string(),
@@ -836,10 +836,6 @@ impl ModelWebGL {
             WebGl2RenderingContext::ONE_MINUS_SRC_ALPHA,
         );
 
-        self.context
-            .uniform1f(Some(&uniforms["canvas_height"]), canvas.height() as f32);
-        self.context
-            .uniform1f(Some(&uniforms["canvas_width"]), canvas.width() as f32);
         self.context.uniform1f(Some(&uniforms["fov"]), fov);
         self.context
             .uniform1f(Some(&uniforms["rotation_x"]), rotation_x);
@@ -867,8 +863,6 @@ impl ModelWebGL {
             &self.context,
             &program,
             vec![
-                "canvas_height".to_string(),
-                "canvas_width".to_string(),
                 "fov".to_string(),
                 "rotation_x".to_string(),
                 "rotation_y".to_string(),
@@ -876,10 +870,6 @@ impl ModelWebGL {
         )?;
         self.context.use_program(Some(&program));
 
-        self.context
-            .uniform1f(Some(&uniforms["canvas_height"]), canvas.height() as f32);
-        self.context
-            .uniform1f(Some(&uniforms["canvas_width"]), canvas.width() as f32);
         self.context.uniform1f(Some(&uniforms["fov"]), fov);
         self.context
             .uniform1f(Some(&uniforms["rotation_x"]), rotation_x);

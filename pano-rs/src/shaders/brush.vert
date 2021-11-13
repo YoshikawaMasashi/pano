@@ -73,6 +73,12 @@ void main(void) {
     x1 = z_rot_mat * x1;
     x2 = z_rot_mat * x2;
 
+    float theta = asin(x1.x);
+    float theta_sign = sign(theta);
+    theta = abs(theta) + width;
+    x1 = vec3(theta_sign * sin(theta), 0.0, cos(theta));
+    x2 = vec3(-theta_sign * sin(theta), 0.0, cos(theta));
+
     float end_ratio = POSITIONS[INDICES[gl_VertexID]].x * 0.5 + 0.5;
     float start_ratio = 1.0 - end_ratio;
     vec3 target_position = x1 * start_ratio + x2 * end_ratio;
