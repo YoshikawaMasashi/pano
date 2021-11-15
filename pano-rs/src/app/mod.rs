@@ -310,6 +310,7 @@ impl Component for Model {
                 all_view_vert_shader,
                 drawing_canvas_vert_shader,
                 brush_vert_shader,
+                brush_dist: 0.0,
 
                 show_panorama_frag_shader,
                 draw_circle_frag_shader,
@@ -401,7 +402,7 @@ impl Component for Model {
                     self.webgl
                         .as_ref()
                         .unwrap()
-                        .read()
+                        .write()
                         .unwrap()
                         .draw_brush(
                             (
@@ -622,6 +623,7 @@ pub struct ModelWebGL {
     context: WebGl2RenderingContext,
     work_texture: Arc<Mutex<WebGlTexture>>,
     brush_texture: Arc<Mutex<Option<WebGlTexture>>>,
+    brush_dist: f32,
 
     all_view_vert_shader: WebGlShader,
     drawing_canvas_vert_shader: WebGlShader,
@@ -949,14 +951,35 @@ impl ModelWebGL {
 
         *self.brush_texture.lock().unwrap() = Some(brush_texture);
 
+        self.brush_dist = 0.0;
         Ok(())
     }
 
     pub fn draw_brush(
-        &self,
+        &mut self,
         start_position: (f32, f32, f32),
         end_position: (f32, f32, f32),
     ) -> Result<(), JsValue> {
+        let x1 = (start_position.0 * start_position.0
+            + start_position.1 * start_position.1
+            + start_position.2 * start_position.2)
+            .sqrt();
+        let x1 = (
+            start_position.0 / x1,
+            start_position.1 / x1,
+            start_position.2 / x1,
+        );
+        let x2 = (end_position.0 * end_position.0
+            + end_position.1 * end_position.1
+            + end_position.2 * end_position.2)
+            .sqrt();
+        let x2 = (
+            end_position.0 / x2,
+            end_position.1 / x2,
+            end_position.2 / x2,
+        );
+        let dist = (x1.0 * x2.0 + x1.1 * x2.1 + x1.2 * x2.2).abs().acos() / 0.02;
+
         let frame_buffer = self.context.create_framebuffer().unwrap();
         self.context
             .bind_framebuffer(WebGl2RenderingContext::FRAMEBUFFER, Some(&frame_buffer));
@@ -979,7 +1002,12 @@ impl ModelWebGL {
         let uniforms = get_uniform_locations(
             &self.context,
             &program,
-            vec!["start_position".to_string(), "end_position".to_string()],
+            vec![
+                "start_position".to_string(),
+                "end_position".to_string(),
+                "point_num".to_string(),
+                "point_offset".to_string(),
+            ],
         )?;
         self.context.use_program(Some(&program));
         self.context.uniform3f(
@@ -994,6 +1022,12 @@ impl ModelWebGL {
             end_position.1,
             end_position.2,
         );
+        self.context.uniform1i(
+            Some(&uniforms["point_num"]),
+            ((self.brush_dist + dist).floor() as i32) - self.brush_dist.floor() as i32,
+        );
+        self.context
+            .uniform1f(Some(&uniforms["point_offset"]), self.brush_dist % 1.0);
 
         self.context.blend_func(
             WebGl2RenderingContext::SRC_ALPHA,
@@ -1004,6 +1038,8 @@ impl ModelWebGL {
 
         self.context
             .bind_framebuffer(WebGl2RenderingContext::FRAMEBUFFER, None);
+
+        self.brush_dist += dist;
         Ok(())
     }
     pub fn stop_brush(&mut self, rotation_x: f32, rotation_y: f32) -> Result<(), JsValue> {

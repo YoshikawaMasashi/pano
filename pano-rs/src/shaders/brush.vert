@@ -48,10 +48,14 @@ mat3 rotation_z(float rot) {
 uniform vec3 start_position;
 uniform vec3 end_position;
 
+out vec2 brush_position;
+
 void main(void) {
-    float width = 0.01;
+    float width = 0.02;
     vec3 x1 = start_position / length(start_position);
     vec3 x2 = end_position / length(end_position);
+
+    float dist = acos(abs(dot(x1, x2))) / width;
 
     vec3 center_position = (x1 + x2) / 2.0;
     float y_rot = asin(center_position.x / length(center_position.xz));
@@ -88,6 +92,6 @@ void main(void) {
     float elevation = asin(target_position.y);
     float azimuth = sign(target_position.x) * acos(target_position.z / length(target_position.xz));
 
-    vec2 position = vec2(azimuth / PI, -elevation / PI * 2.0);
-    gl_Position = vec4(position, 0.0, 1.0);
+    gl_Position = vec4(azimuth / PI, -elevation / PI * 2.0, 0.0, 1.0);
+    brush_position = vec2((dist + 2.0) * (0.5 * POSITIONS[INDICES[gl_VertexID]].x + 0.5) - 1.0, POSITIONS[INDICES[gl_VertexID]].y);
 }
