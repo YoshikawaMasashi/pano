@@ -521,7 +521,7 @@ impl Component for Model {
             }
             Msg::ChangeFOV { fov } => {
                 self.fov = fov;
-                false
+                true
             }
         }
     }
@@ -574,7 +574,7 @@ impl Component for Model {
                                 None
                             }})
                     />
-                    <label for="volume">{"FOV"}</label>
+                    <label for="volume">{format!("FOV={:?}", self.fov)}</label>
                 </div>
                 <div id="dialog">
                     {
