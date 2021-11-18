@@ -3,9 +3,10 @@ extern crate console_error_panic_hook;
 use std::collections::HashMap;
 use std::path::Path;
 
-use web_sys::{WebGl2RenderingContext, WebGlProgram, WebGlShader, WebGlUniformLocation};
+use web_sys::{WebGlProgram, WebGlShader, WebGlUniformLocation};
 
 use crate::file_io::read_binary;
+use crate::WebGl2RenderingContext;
 
 pub fn read_shader(
     path: &Path,

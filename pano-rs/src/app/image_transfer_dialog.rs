@@ -3,11 +3,12 @@ use std::sync::{Arc, RwLock};
 
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
-use web_sys::{HtmlInputElement, WebGl2RenderingContext, WebGlShader};
+use web_sys::{HtmlInputElement, WebGlShader};
 use yew::prelude::*;
 
 use crate::file_io::{read_image, write_image};
 use crate::webgl_utils::{compile_shader, get_uniform_locations, link_program};
+use crate::WebGl2RenderingContext;
 
 const WORK_TEXTURE_WIDTH: usize = 3840;
 const WORK_TEXTURE_HEIGHT: usize = 1920;

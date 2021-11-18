@@ -1,6 +1,7 @@
 use std::io::Cursor;
 use std::path::Path;
 
+use exr::prelude::*;
 use js_sys::Uint8Array;
 
 use crate::wasm_bind::{read_file, write_file};
@@ -38,4 +39,27 @@ pub fn write_image(path: &Path, data: image::RgbaImage) {
         .unwrap();
 
     write_binary(path, bytes);
+}
+
+pub fn read_exr(path: &Path) -> PixelImage<Vec<Vec<[f32; 4]>>, RgbaChannels> {
+    let image = exr::prelude::read()
+        .no_deep_data()
+        .largest_resolution_level()
+        .rgba_channels(
+            |resolution, _| {
+                let default_pixel = [0.0, 0.0, 0.0, 0.0];
+                let empty_line = vec![default_pixel; resolution.width()];
+                let empty_image = vec![empty_line; resolution.height()];
+                empty_image
+            },
+            |pixel_vector, position, (r, g, b, a): (f32, f32, f32, f32)| {
+                pixel_vector[position.y()][position.x()] = [r, g, b, a]
+            },
+        )
+        .first_valid_layer()
+        .all_attributes()
+        .non_parallel()
+        .from_buffered(Cursor::new(read_binary(path).as_slice()))
+        .unwrap();
+    image
 }

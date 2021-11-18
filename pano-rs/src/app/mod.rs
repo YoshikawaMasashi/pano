@@ -9,12 +9,13 @@ use std::sync::{Arc, Mutex, RwLock};
 
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
-use web_sys::{HtmlDivElement, WebGl2RenderingContext, WebGlShader, WebGlTexture};
+use web_sys::{HtmlDivElement, WebGlShader, WebGlTexture, WebglColorBufferFloat};
 use yew::prelude::*;
 use yew::{html, ChangeData, Html, InputData};
 
 use crate::file_io::{read_image, write_image};
 use crate::webgl_utils::{compile_shader, get_uniform_locations, link_program};
+use crate::WebGl2RenderingContext;
 use cubes_to_equirectangular_dialog::CubesToEquirectangularDialog;
 use image_transfer_dialog::ImageTransferDialog;
 
@@ -198,6 +199,9 @@ impl Component for Model {
                 .unwrap()
                 .dyn_into::<WebGl2RenderingContext>()
                 .unwrap();
+            let ext = context.get_extension("EXT_color_buffer_float").unwrap();
+            let ext = context.get_extension("OES_texture_float").unwrap();
+
             context.clear_color(0.0, 0.0, 0.0, 1.0);
             context.enable(WebGl2RenderingContext::BLEND);
 
@@ -320,14 +324,6 @@ impl Component for Model {
                 panorama_rotation_frag_shader,
             })));
 
-            self.webgl
-                .as_ref()
-                .unwrap()
-                .read()
-                .unwrap()
-                .show(self.rotation_x, self.rotation_y, self.fov, self.enable_grid)
-                .unwrap();
-
             let link = self.link.clone();
             *self.render_canvas_f.write().unwrap() = Some(Closure::wrap(Box::new(move || {
                 link.send_message(Msg::RenderCanvas)
@@ -361,6 +357,24 @@ impl Component for Model {
                     .as_ref()
                     .unchecked_ref(),
             );
+
+            /*
+            self.webgl
+                .as_ref()
+                .unwrap()
+                .read()
+                .unwrap()
+                .import_exp_to_work_texture(Path::new("C:/Users/earne/Desktop/blender work/building/20210721_off grid house/moonless_golf_4k.exr"))
+                .unwrap();
+            */
+
+            self.webgl
+                .as_ref()
+                .unwrap()
+                .read()
+                .unwrap()
+                .show(self.rotation_x, self.rotation_y, self.fov, self.enable_grid)
+                .unwrap();
         }
     }
 
@@ -671,6 +685,61 @@ impl ModelWebGL {
         self.context
             .bind_texture(WebGl2RenderingContext::TEXTURE_2D, None);
 
+        Ok(())
+    }
+
+    pub fn import_exp_to_work_texture(&self, path: &Path) -> Result<(), JsValue> {
+        let image = crate::file_io::read_exr(path);
+        crate::console_log!("height {:?}", image.layer_data.channel_data.pixels.len());
+        crate::console_log!("width {:?}", image.layer_data.channel_data.pixels[0].len());
+        let mut pixels = vec![];
+        for x in 0..image.layer_data.channel_data.pixels.len() {
+            for y in 0..image.layer_data.channel_data.pixels[0].len() {
+                pixels.push(image.layer_data.channel_data.pixels[x][y][0]);
+                pixels.push(image.layer_data.channel_data.pixels[x][y][1]);
+                pixels.push(image.layer_data.channel_data.pixels[x][y][2]);
+                pixels.push(image.layer_data.channel_data.pixels[x][y][3]);
+            }
+        }
+        let work_texture = self.work_texture.lock().unwrap();
+        self.context
+            .bind_texture(WebGl2RenderingContext::TEXTURE_2D, Some(&work_texture));
+
+        self.context
+            .tex_image_2d_with_i32_and_i32_and_i32_and_format_and_type_and_opt_f32_array(
+                WebGl2RenderingContext::TEXTURE_2D,
+                0,
+                WebGl2RenderingContext::RGBA32F as i32,
+                image.layer_data.channel_data.pixels[0].len() as i32,
+                image.layer_data.channel_data.pixels.len() as i32,
+                0,
+                WebGl2RenderingContext::RGBA,
+                WebGl2RenderingContext::FLOAT,
+                Some(pixels.as_slice()),
+            )?;
+        self.context.tex_parameteri(
+            WebGl2RenderingContext::TEXTURE_2D,
+            WebGl2RenderingContext::TEXTURE_MAG_FILTER,
+            WebGl2RenderingContext::LINEAR as i32,
+        );
+        self.context.tex_parameteri(
+            WebGl2RenderingContext::TEXTURE_2D,
+            WebGl2RenderingContext::TEXTURE_MIN_FILTER,
+            WebGl2RenderingContext::LINEAR as i32,
+        );
+
+        self.context.tex_parameteri(
+            WebGl2RenderingContext::TEXTURE_2D,
+            WebGl2RenderingContext::TEXTURE_WRAP_S,
+            WebGl2RenderingContext::CLAMP_TO_EDGE as i32,
+        );
+        self.context.tex_parameteri(
+            WebGl2RenderingContext::TEXTURE_2D,
+            WebGl2RenderingContext::TEXTURE_WRAP_T,
+            WebGl2RenderingContext::CLAMP_TO_EDGE as i32,
+        );
+        self.context
+            .bind_texture(WebGl2RenderingContext::TEXTURE_2D, None);
         Ok(())
     }
 
