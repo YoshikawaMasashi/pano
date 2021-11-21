@@ -199,8 +199,8 @@ impl Component for Model {
                 .unwrap()
                 .dyn_into::<WebGl2RenderingContext>()
                 .unwrap();
-            let ext = context.get_extension("EXT_color_buffer_float").unwrap();
-            let ext = context.get_extension("OES_texture_float").unwrap();
+            let _ext = context.get_extension("EXT_color_buffer_float").unwrap();
+            let _ext = context.get_extension("OES_texture_float").unwrap();
 
             context.clear_color(0.0, 0.0, 0.0, 1.0);
             context.enable(WebGl2RenderingContext::BLEND);

@@ -75,6 +75,19 @@ impl Component for ImageTransferDialog {
             context.clear_color(0.0, 0.0, 0.0, 1.0);
             context.enable(WebGl2RenderingContext::BLEND);
 
+            let all_view_vert_shader = crate::webgl_utils::read_shader(
+                Path::new("./pano-rs/src/shaders/all_view.vert"),
+                &context,
+                WebGl2RenderingContext::VERTEX_SHADER,
+            )
+            .unwrap();
+            let image_transfer_frag_shader = crate::webgl_utils::read_shader(
+                Path::new("./pano-rs/src/shaders/image_transfer.frag"),
+                &context,
+                WebGl2RenderingContext::FRAGMENT_SHADER,
+            )
+            .unwrap();
+            /*
             let all_view_vert_shader = compile_shader(
                 &context,
                 WebGl2RenderingContext::VERTEX_SHADER,
@@ -87,6 +100,7 @@ impl Component for ImageTransferDialog {
                 include_str!("../shaders/image_transfer.frag"),
             )
             .unwrap();
+            */
 
             self.webgl = Some(Arc::new(RwLock::new(ModelWebGL {
                 context,

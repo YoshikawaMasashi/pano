@@ -29,8 +29,8 @@ void main(void) {
     mat3 rotation = rotation_y_mat * rotation_x_mat;
     pt = rotation * pt;
 
-    float elevation = asin(pt.y);
-    float azimuth = sign(pt.x) * acos(pt.z / length(pt.xz)); // sign(pt.x) * acos(pt.z / cos(elevation));
+    float elevation = asin(clamp(pt.y, -1.0 + 1e-10, 1.0 - 1e-10));
+    float azimuth = sign(pt.x) * acos(clamp(pt.z / length(pt.xz), -1.0 + 1e-10, 1.0 - 1e-10));
 
     vec2 tex_coords = vec2(azimuth / PI, elevation / PI * 2.0);
     tex_coords = (tex_coords + 1.0) / 2.0;
