@@ -1,5 +1,6 @@
 const {app, ipcMain, Menu, BrowserWindow, dialog } = require('electron');
 const path = require('path');
+const fs = require('fs');
 
 let win;
 const template = Menu.buildFromTemplate([
@@ -106,4 +107,10 @@ ipcMain.handle('showSavePngDialog', async (event) => {
       ]
   });
   return filename;
+});
+
+ipcMain.handle('is_directory', async(event, path) => {
+  let stats = fs.statSync(path);
+  let ret = stats.isDirectory();
+  return ret;
 });

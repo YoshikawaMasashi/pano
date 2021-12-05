@@ -1,3 +1,5 @@
+use std::sync::{Arc, RwLock};
+
 use js_sys::ArrayBuffer;
 use wasm_bindgen::prelude::*;
 
@@ -30,8 +32,25 @@ extern "C" {
     #[wasm_bindgen(js_name = writeFileSync, catch)]
     pub fn write_file(path: &str, data: &Uint8Array) -> Result<(), JsValue>;
 
-    #[wasm_bindgen(js_name = is_directory)]
-    pub fn is_directory(path: &str) -> bool;
+    #[wasm_bindgen(js_name = is_directory, catch)]
+    pub fn is_directory_(path: &str) -> Result<JsValue, JsValue>;
+}
+
+pub fn is_directory(path: &str) -> bool {
+    let promise: js_sys::Promise = is_directory_(path).unwrap().into();
+    let ret: Arc<RwLock<bool>> = Arc::new(RwLock::new(false));
+    let ret_cloned = ret.clone();
+    wasm_bindgen_futures::spawn_local(async move {
+        let ret_or_undefined = wasm_bindgen_futures::JsFuture::from(promise).await.unwrap();
+        if let Some(ret_) = ret_or_undefined.as_bool() {
+            *ret_cloned.write().unwrap() = ret_;
+        } else {
+            *ret_cloned.write().unwrap() = false;
+        }
+        crate::console_log!("ret_cloned {:?}", ret_cloned);
+    });
+    crate::console_log!("ret {:?}", ret);
+    return *ret.clone().read().unwrap();
 }
 
 #[wasm_bindgen(raw_module = "../dialog.js")]
