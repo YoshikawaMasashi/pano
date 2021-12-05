@@ -15,7 +15,9 @@ const WORK_TEXTURE_HEIGHT: usize = 1920;
 
 pub enum Msg {
     OpenDirectoryDialog,
+    OpenAnimationDirectoryDialog,
     Convert,
+    ConvertAnimation,
 }
 
 #[derive(Properties, Clone, PartialEq)]
@@ -28,6 +30,7 @@ pub struct CubesToEquirectangularDialog {
     link: ComponentLink<Self>,
     webgl: Option<Arc<RwLock<ModelWebGL>>>,
     input_ref: NodeRef,
+    animation_input_ref: NodeRef,
 
     open: bool,
 }
@@ -46,10 +49,12 @@ impl Component for CubesToEquirectangularDialog {
 
     fn create(props: Self::Properties, link: ComponentLink<Self>) -> Self {
         let input_ref = NodeRef::default();
+        let animation_input_ref = NodeRef::default();
         Self {
             link,
             webgl: None,
             input_ref,
+            animation_input_ref,
             open: props.open,
         }
     }
@@ -111,6 +116,24 @@ impl Component for CubesToEquirectangularDialog {
                 });
                 false
             }
+            Msg::OpenAnimationDirectoryDialog => {
+                let dialog_promise: js_sys::Promise =
+                    crate::wasm_bind::show_open_directory_dialog()
+                        .unwrap()
+                        .into();
+                let animation_input_ref = self.animation_input_ref.clone();
+                wasm_bindgen_futures::spawn_local(async move {
+                    let path_or_undefined = wasm_bindgen_futures::JsFuture::from(dialog_promise)
+                        .await
+                        .unwrap();
+                    if let Some(path) = path_or_undefined.as_string() {
+                        if let Some(input) = animation_input_ref.cast::<HtmlInputElement>() {
+                            input.set_value(path.as_str());
+                        }
+                    }
+                });
+                false
+            }
             Msg::Convert => {
                 if let Some(input) = self.input_ref.cast::<HtmlInputElement>() {
                     self.webgl
@@ -119,6 +142,18 @@ impl Component for CubesToEquirectangularDialog {
                         .read()
                         .unwrap()
                         .convert(Path::new(&input.value()))
+                        .unwrap();
+                }
+                false
+            }
+            Msg::ConvertAnimation => {
+                if let Some(animation_input) = self.animation_input_ref.cast::<HtmlInputElement>() {
+                    self.webgl
+                        .as_ref()
+                        .unwrap()
+                        .read()
+                        .unwrap()
+                        .convert_animation(Path::new(&animation_input.value()))
                         .unwrap();
                 }
                 false
@@ -150,12 +185,21 @@ impl Component for CubesToEquirectangularDialog {
                         ref={self.input_ref.clone()}
                     />
                     <button onclick=self.link.callback(|_| Msg::OpenDirectoryDialog)>{ "ファイルを選択" }</button>
+                    <button onclick=self.link.callback(|_| Msg::Convert)>{ "変換" }</button>
+                    <br />
+                    <br />
+                    {"animation: frame0001/*.png, frame0002/*.pngという形式になっているディレクトリを指定してください"}
+                    <br/>
+                    <input
+                        ref={self.animation_input_ref.clone()}
+                    />
+                    <button onclick=self.link.callback(|_| Msg::OpenAnimationDirectoryDialog)>{ "ファイルを選択" }</button>
+                    <button onclick=self.link.callback(|_| Msg::ConvertAnimation)>{ "変換" }</button>
                     <canvas
                         id="6cubes_canvas"
                         height="1"
                         width="1"
                     ></canvas>
-                    <button onclick=self.link.callback(|_| Msg::Convert)>{ "変換" }</button>
                 </dialog>
             </div>
         }
@@ -320,6 +364,34 @@ impl ModelWebGL {
             image::RgbaImage::from_vec(WORK_TEXTURE_WIDTH as u32, WORK_TEXTURE_HEIGHT as u32, data)
                 .unwrap();
         write_image(path.join("equirectangular.png").as_path(), data);
+        Ok(())
+    }
+
+    pub fn convert_animation(&self, path: &Path) -> Result<(), JsValue> {
+        let mut idx = 1;
+        loop {
+            let frame_path = path.join(format!("frame{:>04}", idx));
+            crate::console_log!(
+                "{:?} {:?} {} {} {} {} {}",
+                frame_path,
+                path,
+                crate::wasm_bind::is_directory(path.to_str().unwrap()),
+                frame_path.is_dir(),
+                path.is_dir(),
+                frame_path.exists(),
+                path.exists()
+            );
+            if !frame_path.exists() {
+                crate::console_log!("not exists");
+                break;
+            }
+            if frame_path.is_file() {
+                crate::console_log!("is_file");
+                break;
+            }
+
+            idx += 1;
+        }
         Ok(())
     }
 }

@@ -29,6 +29,9 @@ extern "C" {
 
     #[wasm_bindgen(js_name = writeFileSync, catch)]
     pub fn write_file(path: &str, data: &Uint8Array) -> Result<(), JsValue>;
+
+    #[wasm_bindgen(js_name = is_directory)]
+    pub fn is_directory(path: &str) -> bool;
 }
 
 #[wasm_bindgen(raw_module = "../dialog.js")]
